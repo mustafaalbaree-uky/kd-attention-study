@@ -1,0 +1,16 @@
+dataset:
+  batch_size: 32
+  image_size: 224
+  name: CIFAR-10
+models:
+  student_mobilevit: apple/mobilevit-small
+  student_resnet: resnet18
+  teacher: google/vit-base-patch16-224
+training:
+  epochs: 2
+  kd_alpha: 0.7
+  kd_temperature: 4
+  lr: 0.0003
+  random_seed: 42
+  val_split: 0.1
+  weight_decay: 0.0001
