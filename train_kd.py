@@ -156,7 +156,7 @@ def main():
     print(f"Device: {device}")
 
     print("Loading dataset …")
-    raw = load_dataset(DATASET)
+    raw = load_dataset(DATASET, "full_size")
     train_ds = ImagenetteDataset(raw["train"],      train_transform)
     val_ds   = ImagenetteDataset(raw["validation"], val_transform)
 
