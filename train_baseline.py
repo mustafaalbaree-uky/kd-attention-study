@@ -1,11 +1,10 @@
 """
-Baseline training: MobileViT-small fine-tuned on CIFAR-10 with hard labels only.
+Baseline training: ResNet-18 on ImageNette with hard labels only.
 
-Loss = CrossEntropy(student_logits, hard_labels)   — no teacher, no soft labels.
+Loss = CrossEntropy(student_logits, hard_labels) — no teacher, no soft labels.
 
-Identical architecture, dataset split, image size, optimizer, LR schedule, and
-number of epochs as the KD run (train_kd.py) so the two results are directly
-comparable.
+Identical architecture, dataset, preprocessing, optimizer, scheduler, and
+number of epochs as train_kd.py so the two results are directly comparable.
 
 All hyperparameters are read from config.yaml.
 """
@@ -16,158 +15,170 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+import torchvision.models as models
+import torchvision.transforms as transforms
 import yaml
-from torch.utils.data import DataLoader, Subset
-from torchvision import datasets, transforms
+from datasets import load_dataset
+from PIL import Image
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 with open("config.yaml") as f:
     cfg = yaml.safe_load(f)
 
-SEED         = cfg["training"]["random_seed"]
-EPOCHS       = cfg["training"]["epochs"]
-LR           = cfg["training"]["lr"]
-WEIGHT_DECAY = cfg["training"]["weight_decay"]
-VAL_SPLIT    = cfg["training"]["val_split"]
-ACCUM_STEPS  = cfg["training"]["grad_accum_steps"]
-IMG_SIZE     = cfg["dataset"]["image_size"]
-BATCH_SIZE   = cfg["dataset"]["batch_size"]
-MICRO_BATCH  = BATCH_SIZE // ACCUM_STEPS
-NUM_CLASSES  = 10
+SEED        = cfg["training"]["seed"]
+NUM_CLASSES = cfg["training"]["num_classes"]
+IMG_SIZE    = cfg["dataset"]["image_size"]
+BATCH_SIZE  = cfg["dataset"]["batch_size"]
+DATASET     = cfg["dataset"]["name"]
+STUDENT_ID  = cfg["models"]["student"]
 
-# ── Seed everywhere ────────────────────────────────────────────────────────────
+NUM_EPOCHS  = 30
+LR          = 0.01
+
+# ── Reproducibility ────────────────────────────────────────────────────────────
 random.seed(SEED)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
 torch.cuda.manual_seed_all(SEED)
 
-if torch.cuda.is_available():
-    DEVICE = torch.device("cuda")
-elif torch.backends.mps.is_available():
-    DEVICE = torch.device("mps")
-else:
-    DEVICE = torch.device("cpu")
+# ── Transforms ─────────────────────────────────────────────────────────────────
+_norm = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                              std=[0.229, 0.224, 0.225])
 
-print(f"Device         : {DEVICE}")
-print(f"lr={LR}  epochs={EPOCHS}")
-print(f"Effective batch={BATCH_SIZE}  micro_batch={MICRO_BATCH}  accum={ACCUM_STEPS}")
-
-Path("checkpoints").mkdir(exist_ok=True)
-Path("results").mkdir(exist_ok=True)
-
-# ── Data ───────────────────────────────────────────────────────────────────────
-MEAN = (0.485, 0.456, 0.406)
-STD  = (0.229, 0.224, 0.225)
-
-train_tf = transforms.Compose([
-    transforms.Resize((IMG_SIZE, IMG_SIZE)),
+train_transform = transforms.Compose([
+    transforms.Resize(256),
+    transforms.RandomCrop(IMG_SIZE),
     transforms.RandomHorizontalFlip(),
-    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
     transforms.ToTensor(),
-    transforms.Normalize(MEAN, STD),
-])
-val_tf = transforms.Compose([
-    transforms.Resize((IMG_SIZE, IMG_SIZE)),
-    transforms.ToTensor(),
-    transforms.Normalize(MEAN, STD),
+    _norm,
 ])
 
-full_train_aug = datasets.CIFAR10(root="data", train=True, download=True,  transform=train_tf)
-full_train_val = datasets.CIFAR10(root="data", train=True, download=False, transform=val_tf)
+val_transform = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(IMG_SIZE),
+    transforms.ToTensor(),
+    _norm,
+])
 
-rng = torch.Generator().manual_seed(SEED)
-indices   = torch.randperm(len(full_train_aug), generator=rng).tolist()
-n_val     = int(len(indices) * VAL_SPLIT)
-val_idx   = indices[:n_val]
-train_idx = indices[n_val:]
 
-train_set = Subset(full_train_aug, train_idx)
-val_set   = Subset(full_train_val, val_idx)
+# ── HuggingFace ImageNette wrapper ─────────────────────────────────────────────
+class ImagenetteDataset(Dataset):
+    def __init__(self, hf_split, transform):
+        self.data = hf_split
+        self.transform = transform
 
-print(f"Train samples  : {len(train_set):,}  |  Val samples: {len(val_set):,}")
+    def __len__(self):
+        return len(self.data)
 
-train_loader = DataLoader(train_set, batch_size=MICRO_BATCH, shuffle=True,  num_workers=0)
-val_loader   = DataLoader(val_set,   batch_size=MICRO_BATCH, shuffle=False, num_workers=0)
+    def __getitem__(self, idx):
+        item = self.data[idx]
+        image = item["image"]
+        if not isinstance(image, Image.Image):
+            image = Image.fromarray(image)
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        return self.transform(image), item["label"]
+
 
 # ── Model ──────────────────────────────────────────────────────────────────────
-from transformers import MobileViTForImageClassification
+def load_student(num_classes):
+    model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+    model.fc = nn.Linear(model.fc.in_features, num_classes)
+    return model
 
-model_name = cfg["models"]["student_baseline"]
-print(f"\nLoading baseline : {model_name}")
-student = MobileViTForImageClassification.from_pretrained(model_name)
-in_features = student.classifier.in_features    # 640 for mobilevit-small
-student.classifier = nn.Linear(in_features, NUM_CLASSES)
-student.to(DEVICE)
-trainable = sum(p.numel() for p in student.parameters() if p.requires_grad)
-print(f"  Baseline params: {trainable:,} (all trainable)")
 
-# ── Loss, optimizer, scheduler ────────────────────────────────────────────────
-ce_fn     = nn.CrossEntropyLoss()
-optimizer = torch.optim.AdamW(student.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
+# ── Train / eval helpers ───────────────────────────────────────────────────────
+def train_one_epoch(model, loader, optimizer, device):
+    model.train()
+    sum_loss = correct = seen = 0
 
-# ── CSV logger ─────────────────────────────────────────────────────────────────
-csv_path = Path("results/baseline_training_log.csv")
-with csv_path.open("w", newline="") as f:
-    csv.writer(f).writerow(["epoch", "train_loss", "train_acc", "val_acc"])
+    for images, labels in tqdm(loader, leave=False, desc="  train"):
+        images, labels = images.to(device), labels.to(device)
 
-# ── Training loop ──────────────────────────────────────────────────────────────
-print("\n" + "─" * 52)
-print(f"{'Epoch':>5}  {'TrainLoss':>10}  {'TrainAcc':>9}  {'ValAcc':>8}")
-print("─" * 52)
+        logits = model(images)
+        loss   = F.cross_entropy(logits, labels)
 
-for epoch in range(1, EPOCHS + 1):
-    student.train()
-    sum_loss = correct = n = 0
-    optimizer.zero_grad()
-
-    for step, (imgs, labels) in enumerate(train_loader):
-        imgs   = imgs.to(DEVICE)
-        labels = labels.to(DEVICE)
-
-        logits = student(pixel_values=imgs).logits          # (B, 10)
-        loss   = ce_fn(logits, labels)
-        (loss / ACCUM_STEPS).backward()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
         bs        = labels.size(0)
         sum_loss += loss.item() * bs
         correct  += (logits.argmax(1) == labels).sum().item()
-        n        += bs
+        seen     += bs
 
-        if (step + 1) % ACCUM_STEPS == 0 or (step + 1) == len(train_loader):
-            optimizer.step()
-            optimizer.zero_grad()
+    return sum_loss / seen, correct / seen
 
-    scheduler.step()
 
-    train_loss = sum_loss / n
-    train_acc  = correct  / n
+@torch.no_grad()
+def evaluate(model, loader, device):
+    model.eval()
+    correct = seen = 0
+    for images, labels in tqdm(loader, leave=False, desc="  val  "):
+        images, labels = images.to(device), labels.to(device)
+        correct += (model(images).argmax(1) == labels).sum().item()
+        seen    += labels.size(0)
+    return correct / seen
 
-    # ── Validation ──────────────────────────────────────────────────────────
-    student.eval()
-    val_correct = val_n = 0
-    with torch.no_grad():
-        for imgs, labels in val_loader:
-            labels = labels.to(DEVICE)
-            preds  = student(pixel_values=imgs.to(DEVICE)).logits.argmax(1)
-            val_correct += (preds == labels).sum().item()
-            val_n       += labels.size(0)
-    val_acc = val_correct / val_n
 
-    print(f"{epoch:5d}  {train_loss:10.4f}  {train_acc:9.4f}  {val_acc:8.4f}", flush=True)
+# ── Main ───────────────────────────────────────────────────────────────────────
+def main():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Device: {device}")
 
-    with csv_path.open("a", newline="") as f:
-        csv.writer(f).writerow([
-            epoch,
-            f"{train_loss:.6f}",
-            f"{train_acc:.6f}",
-            f"{val_acc:.6f}",
-        ])
+    print("Loading dataset …")
+    raw = load_dataset(DATASET, "full_size")
+    train_ds = ImagenetteDataset(raw["train"],      train_transform)
+    val_ds   = ImagenetteDataset(raw["validation"], val_transform)
 
-# ── Save weights ───────────────────────────────────────────────────────────────
-ckpt_path = Path("checkpoints/student_baseline.pth")
-torch.save(student.state_dict(), ckpt_path)
-print("─" * 52)
-print(f"\nTraining complete.")
-print(f"  Weights → {ckpt_path}")
-print(f"  CSV log → {csv_path}")
+    g = torch.Generator().manual_seed(SEED)
+    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,
+                              num_workers=2, pin_memory=True, generator=g)
+    val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False,
+                              num_workers=2, pin_memory=True)
+
+    student = load_student(NUM_CLASSES).to(device)
+
+    optimizer = torch.optim.SGD(student.parameters(), lr=LR,
+                                momentum=0.9, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
+
+    Path("checkpoints").mkdir(exist_ok=True)
+    Path("results").mkdir(exist_ok=True)
+
+    csv_path  = Path("results/baseline_training_log.csv")
+    ckpt_path = Path("checkpoints/student_baseline.pth")
+
+    with csv_path.open("w", newline="") as f:
+        csv.writer(f).writerow(["epoch", "train_loss", "train_acc", "val_acc"])
+
+    best_val_acc = 0.0
+
+    for epoch in range(1, NUM_EPOCHS + 1):
+        print(f"\nEpoch {epoch}/{NUM_EPOCHS}")
+        tr_loss, tr_acc = train_one_epoch(student, train_loader, optimizer, device)
+        val_acc = evaluate(student, val_loader, device)
+        scheduler.step()
+
+        print(f"  loss={tr_loss:.4f}  train_acc={tr_acc:.4f}  val_acc={val_acc:.4f}")
+
+        with csv_path.open("a", newline="") as f:
+            csv.writer(f).writerow([
+                epoch, f"{tr_loss:.6f}", f"{tr_acc:.6f}", f"{val_acc:.6f}",
+            ])
+
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            torch.save(student.state_dict(), ckpt_path)
+            print(f"  Saved checkpoint (val_acc={val_acc:.4f})")
+
+    print(f"\nTraining complete. Best val_acc: {best_val_acc:.4f}")
+    print(f"Checkpoint -> {ckpt_path}")
+    print(f"Log        -> {csv_path}")
+
+
+if __name__ == "__main__":
+    main()
