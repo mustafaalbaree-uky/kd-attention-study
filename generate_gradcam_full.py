@@ -195,6 +195,15 @@ def main():
     n_arrays = len(list(OUT_ARRAYS.glob("*.npz")))
     print(f"\nDone.  Figures: {n_figs:,}  |  Arrays: {n_arrays:,}")
 
+    import shutil
+    print("Zipping arrays …")
+    shutil.make_archive('/kaggle/working/gradcam_arrays', 'zip',
+                        str(OUT_ARRAYS.parent), 'arrays')
+    print("Zipping figures …")
+    shutil.make_archive('/kaggle/working/gradcam_figures', 'zip',
+                        str(OUT_FIGS.parent), 'figures')
+    print("Done.  Output: gradcam_arrays.zip  |  gradcam_figures.zip")
+
 
 if __name__ == "__main__":
     main()
