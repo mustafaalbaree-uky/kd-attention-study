@@ -130,10 +130,17 @@ Every prompt sent to Claude Code follows this exact template. Do not deviate fro
       - students/densenet/results/gradcam_full/arrays/ (3,925 .npz files)
       - students/densenet/results/gradcam_full/figures/ (10 sample PNGs)
 
-[ ] Step 4 — Divergence scoring (JS divergence + Spearman, full validation set)
+[ ] Step 4 — Divergence scoring (JS divergence + Spearman + SSIM, full validation set)
     Files to produce:
-      - shared/score_divergence.py (may need path update for this student)
+      - shared/score_divergence.py (confirm paths point to this student's gradcam_full/arrays/)
       - students/densenet/results/divergence_scores.csv
+        Columns: filename, true_label, teacher_pred, kd_pred, baseline_pred,
+                 teacher_correct, kd_correct, baseline_correct,
+                 js_teacher_kd, js_teacher_baseline,
+                 spearman_teacher_kd, spearman_teacher_baseline,
+                 ssim_teacher_kd, ssim_teacher_baseline
+    Note: The ResNet-18 version of score_divergence.py now includes SSIM.
+          Confirm this version is used — do not run an older copy.
 
 [ ] Step 5 — Summary stats, figures, and statistical significance test
     Files to produce:

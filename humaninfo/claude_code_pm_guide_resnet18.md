@@ -152,6 +152,16 @@ Every prompt sent to Claude Code follows this exact template. Do not deviate fro
     Notes: KD student mean JS distance from teacher: 0.1223. Baseline mean JS distance from
            teacher: 0.1359. KD student shows consistently lower divergence from teacher —
            consistent with hypothesis. Progress printed every 200 images.
+    ⚠️ NEEDS UPDATE: SSIM columns (ssim_teacher_kd, ssim_teacher_baseline) not yet added.
+           divergence_scores.csv must be regenerated after Prompt 9.
+
+[ ] Step 6b — Add SSIM to divergence scoring and regenerate summary stats
+    Files to produce:
+      - score_divergence.py (updated — add ssim_teacher_kd, ssim_teacher_baseline columns)
+      - results/divergence_scores.csv (3,925 rows — now with SSIM columns)
+      - summarize.py (updated — include SSIM means in summary_stats.json)
+      - results/summary_stats.json (regenerated)
+      - results/figures/ (figures 1–3 regenerated; figure4_ssim_by_outcome.png added)
 
 [x] Step 7 — Summary stats, figures, and statistical significance test
     Files produced:
@@ -448,6 +458,50 @@ Update summarize.py to (1) read from the 3,925-row divergence_scores.csv, (2) ad
 
 ## Verify by
 Run python summarize.py and confirm: (1) results/summary_stats.json contains mann_whitney_u_statistic and mann_whitney_p_value keys, (2) all three figures are regenerated, (3) U statistic and p-value print to stdout.
+```
+
+---
+## Prompt 9
+
+```
+## Context
+Steps 1–7 are complete for the ResNet-18 experiment. results/divergence_scores.csv has 3,925 rows with JS divergence and Spearman r columns. We identified a gap: SSIM (Structural Similarity Index) was specified in the research design as a spatially-aware complement to JS divergence but was never added to the scoring script. We need to add it now and regenerate all downstream outputs.
+
+## Task
+Two changes in sequence:
+
+1. Update score_divergence.py to add SSIM between teacher and each student map for every image, appending two new columns to divergence_scores.csv.
+
+2. Update summarize.py to include SSIM means in summary_stats.json and produce one new figure (SSIM by outcome group, matching the structure of figure2_js_by_outcome.png). Regenerate all outputs.
+
+## Inputs
+- students/resnet18/results/gradcam_full/arrays/ — 3,925 .npz files (keys: teacher, kd_student, baseline — 7×7 maps summing to 1.0)
+- students/resnet18/results/divergence_scores.csv (existing — will be overwritten with SSIM columns added)
+- students/resnet18/results/accuracy.csv
+
+## Expected outputs
+- shared/score_divergence.py (updated)
+- students/resnet18/results/divergence_scores.csv — 3,925 rows, same columns as before plus: ssim_teacher_kd, ssim_teacher_baseline
+- shared/summarize.py (updated)
+- students/resnet18/results/summary_stats.json — same structure as before plus: mean_ssim_kd, std_ssim_kd, mean_ssim_baseline, std_ssim_baseline, and ssim broken out by outcome group for both students
+- students/resnet18/results/figures/figure1_js_divergence_bar.png (regenerated — unchanged)
+- students/resnet18/results/figures/figure2_js_by_outcome.png (regenerated — unchanged)
+- students/resnet18/results/figures/figure3_spearman_distribution.png (regenerated — unchanged)
+- students/resnet18/results/figures/figure4_ssim_by_outcome.png (new — grouped bar chart: mean SSIM for KD student and baseline split by outcome group, same structure as figure2)
+
+## Constraints
+- Random seed: 42 everywhere
+- SSIM implementation: use skimage.metrics.structural_similarity
+- Maps are 7×7 and normalized to sum to 1.0 — reshape from flat array to (7,7) before passing to SSIM
+- Use data_range=1.0 and win_size=7 (maps are exactly 7×7 — this is the maximum window size and is correct)
+- SSIM is bounded −1 to 1; higher = more similar
+- Do not change the JS or Spearman logic — add SSIM as additional columns only
+- Print mean ssim_teacher_kd and mean ssim_teacher_baseline to stdout when score_divergence.py finishes
+- All figures 300 DPI, tight_layout(), matplotlib only
+- Progress printed every 200 images in score_divergence.py
+
+## Verify by
+Run python shared/score_divergence.py then python shared/summarize.py and confirm: (1) divergence_scores.csv has the two new SSIM columns with values in [−1, 1], (2) summary_stats.json contains mean_ssim_kd and mean_ssim_baseline, (3) figure4_ssim_by_outcome.png exists in students/resnet18/results/figures/.
 ```
 
 ---

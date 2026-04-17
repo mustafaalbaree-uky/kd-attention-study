@@ -100,9 +100,12 @@ Rationale for dataset choice: ResNet's final convolutional layer on a 224×224 i
 
 ### Step 5 — Quantitative analysis
 - Normalize each Grad-CAM map by its sum so it functions as a spatial probability distribution
-- Compute Jensen-Shannon divergence between teacher and student maps for each image (symmetric, bounded 0–1)
-- Compute Spearman rank correlation between flattened teacher and student maps for each image- Separate pairs into: both correct / student wrong+teacher correct / both wrong
-- Compare mean SSIM across groups — does student failure correlate with lower map similarity?
+- For each image, compute three metrics between the teacher map and each student map:
+  - **Jensen-Shannon divergence** (symmetric, bounded 0–1): treats the normalized map as a probability distribution and measures how much the two distributions differ. Does not preserve spatial structure — two maps with identical marginal distributions but different hot-spot locations will appear similar.
+  - **Spearman rank correlation** (bounded −1 to 1): measures the monotonic spatial agreement between two flattened maps. Non-parametric and robust to outlier activations.
+  - **SSIM** (Structural Similarity Index, bounded −1 to 1): preserves local spatial structure by comparing luminance, contrast, and structure in local windows. The primary spatially-aware complement to JS divergence.
+- Separate image pairs into outcome groups: both correct / student wrong + teacher correct / both wrong
+- Compare mean JS divergence, mean Spearman r, and mean SSIM across groups for each student
 
 ### Step 6 — Qualitative case study analysis
 - Manually select 10 high-agreement pairs, 10 high-divergence pairs, 5 failure cases
@@ -131,19 +134,22 @@ Rationale for dataset choice: ResNet's final convolutional layer on a 224×224 i
 
 ## 7. Evaluation criteria
 
-| Criterion | How we assess it |
+| Criterion | Metric(s) |
 |---|---|
-| Accuracy gap (teacher vs. student) | Numeric: top-1 accuracy difference |
-| Attention similarity (correct cases) | Mean SSIM score on jointly correct predictions |
-| Attention divergence (failure cases) | Mean SSIM score on student-error cases |
-| Effect size | Is the SSIM difference between correct/failure cases large enough to be meaningful? |
-| Qualitative coherence | Do our case studies tell a consistent story? |
+| Accuracy gap (teacher vs. student) | Top-1 accuracy difference |
+| Overall saliency alignment — KD vs. baseline | Mean JS divergence, mean Spearman r, mean SSIM (lower JS / higher Spearman+SSIM = more aligned) |
+| Saliency alignment on correct predictions | Mean JS, Spearman r, SSIM on jointly correct images |
+| Saliency divergence on failure cases | Mean JS, Spearman r, SSIM on student-error images |
+| Effect size | Is the difference between correct/failure groups consistent across all three metrics? |
+| Statistical significance | Mann-Whitney U test between KD and baseline JS distributions |
+| Qualitative coherence | Do case studies tell a consistent story with the quantitative findings? |
 
 ---
 
 ## 8. Anticipated limitations
 
 - **Grad-CAM is imperfect and unstable.** It is a coarse, first-order approximation — its resolution is bounded by the spatial size of the chosen feature map (7×7 for ResNet on 224×224 inputs), and it can be sensitive to gradient noise. More importantly, observed differences in saliency maps between teacher and student may reflect architectural differences or gradient instability rather than any meaningful divergence in how the two models process images. We interpret map similarity as a measurable proxy for saliency alignment, not as evidence of shared or divergent internal reasoning.
+- **ViT excluded by design.** A natural extension of this study would be to use a ViT teacher and examine whether the same alignment pattern holds when attention and saliency are more closely coupled. We excluded ViT for a principled reason: Grad-CAM does not transfer cleanly to transformer architectures. Applying it to a ViT would require a different method entirely (e.g., attention rollout or Chefer et al.'s transformer attribution), and the resulting maps would not be directly comparable to CNN Grad-CAM maps. We note this as a meaningful direction for future work.
 - **ImageNette is not full ImageNet.** Results on a 10-class subset may not generalize to the full 1000-class setting. The 10 ImageNette classes are also visually distinct, which may make the teacher's task easier than a more fine-grained benchmark would.
 - **Generalizability.** Results on one teacher–student pair and one dataset may not generalize to other architectures or domains.
 - **Correlation vs. causation.** We can show that attention divergence correlates with failure; we cannot prove it causes failure.
