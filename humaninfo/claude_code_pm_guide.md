@@ -10,7 +10,7 @@ This file lives in the project. Any new Claude chat in this project should read 
 An empirical study comparing the visual attention patterns of a teacher model and a student model trained via knowledge distillation (KD). We use Grad-CAM to visualize where each model "looks" on the same test images, then measure whether divergence in attention predicts student failure.
 
 **Central research question:**
-Does knowledge distillation transfer visual reasoning strategy, or only classification accuracy?
+Does training with soft teacher labels produce greater Grad-CAM saliency alignment with the teacher than training on hard labels alone — and does saliency divergence predict student failure?
 
 **Models:**
 - Teacher: ResNet-50, pre-trained on ImageNet (torchvision.models or Hugging Face)
@@ -35,7 +35,8 @@ Claude Code does not write Kaggle-specific notebook cells. It writes standard Py
 
 **Deliverables from implementation:**
 - `results/accuracy.csv` — top-1 accuracy for all three models
-- `results/gradcam/` — side-by-side Grad-CAM figures (teacher | KD student | baseline student) for 200 test images
+- `results/gradcam_200/` — side-by-side Grad-CAM figures (teacher | KD student | baseline student) for 200 stratified test images
+- `results/gradcam_full/` — same figures for all ~3925 test images (Kaggle full run)
 - `results/similarity_scores.csv` — per-image SSIM scores, predicted labels, true labels, correctness flags
 - `results/summary_stats.json` — mean SSIM by outcome group, accuracy numbers
 - All code, config files, and a README with exact reproduction steps
@@ -87,58 +88,89 @@ Every prompt sent to Claude Code follows this exact template. Do not deviate fro
 
 ---
 
-## Implementation state tracker
-
-Update this section after every Claude Code session. This is the single source of truth for where the project stands.
-
-```
-## Deprecated — Phase 1 (ViT/MobileViT/CIFAR-10)
-See DEPRECATED_PHASE1.md for full record.
-
 ## Phase 2 (ResNet-50 → ResNet-18 / ImageNette)
 
-[ ] Step 1 — Environment setup and model loading
-    Files to produce:
-      - requirements.txt (updated for Phase 2)
-      - config.yaml (ResNet-50, ResNet-18, ImageNette, image_size=224, batch_size=64, seed=42)
-      - model_check.py (updated for new models)
-    Notes: —
+[x] Step 1 — Environment setup and model loading
+    Files produced:
+      - requirements.txt (pinned: torch, torchvision, timm, datasets, Pillow, PyYAML, grad-cam, scikit-image, scipy, pandas, matplotlib, tqdm)
+      - config.yaml (resnet50 teacher, resnet18 student/baseline, frgfm/imagenette, image_size=224, batch_size=64, seed=42, num_classes=10, T=4, alpha=0.7)
+      - model_check.py (loads all three from torchvision, replaces FC head with 10-class linear, forward pass confirmed)
+      - .gitignore (data/ excluded)
+    Notes: All three models print torch.Size([1, 10]). data/ removed from git tracking and gitignored. Repo pushed to GitHub successfully.
 
-[ ] Step 2 — KD training (ResNet-18 student vs. frozen ResNet-50 teacher)
-    Files to produce:
-      - train_kd.py
-      - checkpoints/student_kd.pth
-      - results/kd_training_log.csv
-    Notes: —
+[x] Step 2 — KD training (ResNet-18 student vs. frozen ResNet-50 teacher)
+    Files produced:
+      - train_resnet18_kd.py (ResNet-50 frozen teacher, ResNet-18 student, KD loss: alpha*T²*KL + (1-alpha)*CE, SGD + CosineAnnealingLR, 30 epochs, tqdm, best-checkpoint saving)
+      - checkpoints/resnet18_kd.pth — best val_acc: 0.9822 (saved locally)
+      - results/resnet18_kd_training_log.csv — 30 epochs of training logs (saved locally)
+    Notes: Training completed on Kaggle GPU T4 x2. Best checkpoint at epoch with val_acc=0.9822.
 
-[ ] Step 3 — Baseline student training (ResNet-18, hard labels only)
-    Files to produce:
-      - train_baseline.py
-      - checkpoints/student_baseline.pth
-      - results/baseline_training_log.csv
-    Notes: —
+[x] Step 3 — Baseline student training (ResNet-18, hard labels only)
+    Files produced:
+      - train_resnet18_baseline.py
+      - checkpoints/resnet18_baseline.pth — best val_acc: 0.9837
+      - results/resnet18_baseline_training_log.csv
+    Notes: val_acc (0.9837) is marginally higher than KD student (0.9822) — difference is
+           within noise at this scale. Worth noting in the report as a baseline comparison.
 
-[ ] Step 4 — Evaluation (accuracy, all three models)
-    Files to produce:
+[x] Step 3.5 — Teacher fine-tuning (ResNet-50 head on ImageNette) (and kd re-train)
+    Files produced:
+      - train_teacher.py
+      - checkpoints/teacher_finetuned.pth
+    Notes: Fine-tunes only the FC head (or a few top layers) of the ImageNet-pretrained
+           ResNet-50 on ImageNette for a small number of epochs. train_kd.py updated to
+           load teacher_finetuned.pth instead of raw torchvision weights.
+
+[x] Step 4 — Evaluation (accuracy, all three models)
+    Files produced:
+      - evaluate.py
       - results/accuracy.csv
-    Notes: —
+    Notes: teacher=0.9936, KD student=0.9819, baseline=0.9822. KD and baseline are
+           essentially tied (~0.3pp difference). This is analytically useful — any saliency
+           divergence found in Step 6 cannot be attributed to accuracy differences between
+           the two students.
 
-[ ] Step 5 — Grad-CAM generation (full 10k test set)
-    Files to produce:
-      - results/gradcam/ (teacher | KD student | baseline side-by-side figures)
-    Notes: —
+[x] Step 5 — Grad-CAM generation (200 stratified test images)
+    Files produced:
+      - generate_gradcam.py
+      - results/gradcam_200/figures/ (200 PNGs: 1×4 grid — original | teacher | KD student | baseline, labeled with predicted class)
+      - results/gradcam_200/arrays/ (200 .npz files: keys teacher, kd_student, baseline — 7×7 maps summing to 1.0 — plus scalar metadata true_label, teacher_pred, kd_pred, baseline_pred)
+    Notes: Native 7×7 maps extracted by bypassing pytorch-grad-cam's built-in upsample.
+           One GradCAM object per model created outside the loop for efficiency.
+           Maps sum-normalized to 1.0 for npz storage; max-normalized separately for figure overlays.
+           Output folder renamed gradcam_200 to distinguish from the full Kaggle run.
 
-[ ] Step 6 — Divergence scoring (JS divergence + Spearman)
-    Files to produce:
-      - results/divergence_scores.csv (per-image JS divergence, Spearman r, labels, correctness flags)
-    Notes: JS divergence requires normalizing Grad-CAM maps to sum to 1 before computing.
-           Spearman computed on flattened, ranked map values.
+[ ] Step 5b — Grad-CAM generation (full ~3925 test images, Kaggle)
+    Files produced:
+      - generate_gradcam_full.py (pushed to main: efb46ae)
+    Outputs (written by Kaggle, not local):
+      - /kaggle/working/results/gradcam_full/figures/ (~3925 PNGs, 4-digit index)
+      - /kaggle/working/results/gradcam_full/arrays/ (~3925 .npz files)
+    Notes: Standalone script — no config.yaml dependency, all paths hardcoded for Kaggle.
+           Checkpoints read from /kaggle/input/kd-attention-checkpoints/.
+           No stratified sampling — iterates all val images via range(len(dataset)).
+           Run with: python generate_gradcam_full.py
 
-[ ] Step 7 — Summary stats and figures
-    Files to produce:
-      - results/summary_stats.json
-      - results/figures/ (group comparison plots)
-    Notes: —
+[x] Step 6 — Divergence scoring (JS divergence + Spearman)
+    Files produced:
+      - score_divergence.py
+      - results/divergence_scores.csv (200 rows, no NaNs, JS in [0,1], Spearman in [-1,1])
+    Notes: KD student mean JS distance from teacher: 0.121. Baseline mean JS distance from
+           teacher: 0.136. KD student shows lower divergence from teacher than baseline —
+           consistent with hypothesis. This is the headline number for the paper.
+
+[x] Step 7 — Summary stats and figures
+    Files produced:
+      - summarize.py
+      - results/summary_stats.json (all expected keys present; JS means: KD=0.121267, baseline=0.136459)
+      - results/figures/figure1_js_divergence_bar.png (~97–103 KB)
+      - results/figures/figure2_js_by_outcome.png (~97–103 KB)
+      - results/figures/figure3_spearman_distribution.png (~97–103 KB)
+    Notes: Main result confirmed — JS divergence rises monotonically with failure:
+           0.118 (both correct, n=198) → 0.332 (student wrong + teacher correct, n=1)
+           → 0.570 (both wrong, n=1). Small n in failure groups is expected given
+           ~98% accuracy on the 200-image sample. Spearman r: KD mean 0.839 vs
+           baseline 0.812. All figures 300 DPI, paper-ready.
 ```
 
 ---
@@ -176,6 +208,193 @@ None — all models pulled from torchvision.
 Run `python model_check.py` and confirm it prints three lines, one per model, each showing output shape `torch.Size([1, 10])`. No errors.
 ```
 
+---
+## Prompt 2
+
+```
+## Context
+Phase 2, Step 1 is complete. All three models (ResNet-50 teacher, ResNet-18 KD student, ResNet-18 baseline student) load and run forward passes correctly. config.yaml exists with all hyperparameters. The repo is on GitHub at https://github.com/mustafaalbaree-uky/kd-attention-study.git. This script will run on Kaggle GPU — ImageNette will be downloaded from Hugging Face at runtime.
+
+## Task
+Implement the knowledge distillation training loop. Train the ResNet-18 KD student using soft labels from the frozen ResNet-50 teacher on ImageNette. Log accuracy and loss per epoch. Save the trained student weights.
+
+## Inputs
+- config.yaml (teacher: resnet50, student: resnet18, dataset: frgfm/imagenette, image_size=224, batch_size=64, seed=42, num_classes=10, T=4, alpha=0.7)
+- model_check.py (reference for how models are loaded and heads are replaced)
+
+## Expected outputs
+- `train_kd.py` — the full KD training script
+- `checkpoints/student_kd.pth` — saved weights of the KD-trained ResNet-18 student
+- `results/kd_training_log.csv` — per-epoch columns: epoch, train_loss_total, train_loss_kd, train_loss_hard, train_acc, val_acc
+
+## Constraints
+- Random seed: 42 everywhere (torch.manual_seed, numpy.random.seed, random.seed, torch.cuda.manual_seed_all)
+- Teacher is fully frozen — no gradients, no weight updates on ResNet-50
+- KD loss: weighted sum of (1) cross-entropy on hard labels and (2) KL divergence between student softened output and teacher softened output, both computed at temperature T=4. Alpha and T read from config.yaml
+- Use torchvision.models for both models, replace FC heads with 10-class linear layers in-place before training
+- Load ImageNette via Hugging Face datasets (`frgfm/imagenette`), standard train/validation split
+- Apply standard ImageNet preprocessing: Resize(224), CenterCrop(224), ToTensor(), Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225])
+- All hyperparameters read from config.yaml — nothing hardcoded
+- Use tqdm for epoch progress
+- Save checkpoint only if val_acc improves (best model checkpoint)
+
+## Verify by
+Confirm `train_kd.py` exists and that it imports without errors by running `python -c "import train_kd"` — no training should execute. Then push to GitHub and run on Kaggle.
+```
+
+---
+## Prompt 3
+
+```
+## Context
+Phase 2, Step 2 is complete. The KD-trained ResNet-18 student (student_kd.pth) achieved val_acc=0.9822 on ImageNette after 30 epochs. We now need a baseline student — an identical ResNet-18 architecture trained on hard labels only, with no teacher. This baseline isolates KD-specific effects from effects of reduced model capacity.
+
+## Task
+Implement the baseline student training loop. Train a ResNet-18 on ImageNette using only cross-entropy loss against hard labels. No teacher, no KD loss. Everything else — architecture, dataset, preprocessing, optimizer, scheduler, epochs — must be identical to train_kd.py so the two runs are directly comparable.
+
+## Inputs
+- config.yaml (teacher: resnet50, student: resnet18, dataset: frgfm/imagenette, image_size=224, batch_size=64, seed=42, num_classes=10, T=4, alpha=0.7)
+- train_kd.py (reference for model loading, dataset loading, preprocessing, optimizer, scheduler)
+
+## Expected outputs
+- `train_baseline.py` — the full baseline training script
+- `checkpoints/student_baseline.pth` — best checkpoint by val_acc
+- `results/baseline_training_log.csv` — per-epoch columns: epoch, train_loss, train_acc, val_acc
+
+## Constraints
+- Random seed: 42 everywhere (torch.manual_seed, numpy.random.seed, random.seed, torch.cuda.manual_seed_all)
+- Loss: cross-entropy on hard labels only — no KD loss, no teacher involved at all
+- Same optimizer: SGD with same hyperparameters as train_kd.py
+- Same scheduler: CosineAnnealingLR with same hyperparameters as train_kd.py
+- Same architecture: ResNet-18, FC head replaced with 10-class linear layer
+- Same dataset: frgfm/imagenette, same train/val split, same preprocessing
+- Same number of epochs: 30
+- All hyperparameters read from config.yaml — nothing hardcoded
+- Use tqdm for epoch progress
+- Save checkpoint only if val_acc improves (best model checkpoint)
+
+## Verify by
+Run `python -c "import train_baseline"` and confirm it imports without errors. Then push to GitHub and run on Kaggle.
+```
+---
+## Prompt 4
+
+```
+## Context
+Phase 2, Steps 1–3.5 are complete. We have three trained checkpoints: checkpoints/teacher_finetuned.pth (ResNet-50, fine-tuned on ImageNette), checkpoints/resnet18_kd.pth (ResNet-18, KD-trained, best val_acc=0.9822), and checkpoints/resnet18_baseline.pth (ResNet-18, hard labels only, best val_acc=0.9837). We now need a formal evaluation of all three models on the held-out test set to produce the accuracy row of our results table.
+
+## Task
+Write an evaluation script that loads all three checkpoints, runs each on the ImageNette test split, and records top-1 accuracy per model. This is evaluation only — no training, no Grad-CAM yet.
+
+## Inputs
+- config.yaml (resnet50 teacher, resnet18 student/baseline, frgfm/imagenette, image_size=224, batch_size=64, seed=42, num_classes=10)
+- checkpoints/teacher_finetuned.pth
+- checkpoints/resnet18_kd.pth
+- checkpoints/resnet18_baseline.pth
+
+## Expected outputs
+- `evaluate.py` — the evaluation script
+- `results/accuracy.csv` — three rows, one per model, with columns: model_name, checkpoint, test_accuracy
+
+The CSV should look exactly like this:
+```
+model_name,checkpoint,test_accuracy
+teacher_resnet50,checkpoints/teacher_finetuned.pth,0.XXXX
+student_kd_resnet18,checkpoints/resnet18_kd.pth,0.XXXX
+student_baseline_resnet18,checkpoints/resnet18_baseline.pth,0.XXXX
+```
+---
+## Prompt 5
+
+```
+## Context
+Phase 2, Step 5 is complete. We have 200 .npz files in results/gradcam/arrays/, each containing three 7×7 Grad-CAM maps (teacher, kd_student, baseline) normalized to sum to 1.0, plus per-image prediction metadata (true_label, teacher_pred, kd_pred, baseline_pred). We now need to compute divergence scores between teacher and each student for every image, and attach correctness flags so we can correlate divergence with failure in Step 7.
+
+## Task
+Write a scoring script that loads all 200 .npz files, computes two divergence metrics between the teacher map and each student map, and saves a single CSV with one row per image.
+
+## Inputs
+- results/gradcam/arrays/ — 200 .npz files from Step 5
+- config.yaml
+
+## Expected outputs
+- `score_divergence.py` — the scoring script
+- `results/divergence_scores.csv` — one row per image, with columns:
+    filename, true_label,
+    teacher_pred, kd_pred, baseline_pred,
+    teacher_correct, kd_correct, baseline_correct,
+    js_teacher_kd, js_teacher_baseline,
+    spearman_teacher_kd, spearman_teacher_baseline
+
+## Constraints
+- Jensen-Shannon divergence: use scipy.spatial.distance.jensenshannon — it returns the JS distance (square root of JS divergence), which is fine; just be consistent. Do not reimplement it manually.
+- Spearman rank correlation: use scipy.stats.spearmanr on the flattened (49-element) teacher and student map arrays
+- correctness flags: 1 if predicted label == true label, 0 otherwise
+- If a map is all zeros (should not happen after Step 5 normalization, but guard anyway), skip the JS computation and record NaN for that row
+- No GPU needed — this is pure numpy/scipy
+- All file I/O uses the arrays/ directory path read from config.yaml if present, otherwise hardcoded default of results/gradcam/arrays/
+- Print progress every 50 images
+
+## Verify by
+Run `python score_divergence.py` and confirm: (1) results/divergence_scores.csv exists with exactly 200 rows plus a header, (2) all js_ columns are between 0 and 1, (3) all spearman_ columns are between -1 and 1, (4) print the mean js_teacher_kd and mean js_teacher_baseline to stdout as a sanity check.
+
+## Constraints
+- Random seed: 42 everywhere (torch.manual_seed, numpy.random.seed, random.seed)
+- Use the ImageNette test split from frgfm/imagenette — NOT the validation split used during training
+- Same preprocessing as training: Resize(256), CenterCrop(224), ToTensor(), Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225])
+- Load each model from torchvision.models with the same head-replacement logic as the training scripts — then load the checkpoint weights
+- All models evaluated in eval mode (model.eval(), torch.no_grad())
+- All hyperparameters read from config.yaml — nothing hardcoded
+- Print each model's accuracy to stdout as it completes, then save the CSV
+
+## Verify by
+Run `python evaluate.py` and confirm: (1) it prints three accuracy lines to stdout, (2) results/accuracy.csv exists with exactly three rows plus a header, (3) teacher accuracy is noticeably higher than or competitive with both students (sanity check that the checkpoints loaded correctly — if teacher accuracy is below 0.90, something is wrong).
+```
+
+---
+## Prompt 6
+
+```
+## Context
+Phase 2 Steps 1-6 are complete. We have divergence_scores.csv with 200 rows containing per-image JS divergence and Spearman r for both KD student and baseline against the teacher, plus correctness flags and labels. Key numbers: KD student mean JS = 0.121, baseline mean JS = 0.136. Step 7 produces the summary stats and figures that go directly into the paper.
+
+## Task
+Write a script that reads divergence_scores.csv and produces two things: a JSON file of summary statistics and a set of figures for the paper.
+
+Summary statistics to compute and save to results/summary_stats.json:
+- Mean and std JS divergence for KD student vs teacher, across all 200 images
+- Mean and std JS divergence for baseline vs teacher, across all 200 images
+- Mean and std Spearman r for both, across all 200 images
+- For the KD student: mean JS divergence split by outcome group — (1) both correct, (2) student wrong + teacher correct, (3) both wrong
+- Same outcome group split for baseline
+- Top-1 accuracy for all three models (read from results/accuracy.csv)
+
+Figures to produce and save to results/figures/:
+- figure1_js_divergence_bar.png — grouped bar chart: mean JS divergence (KD student vs baseline) with error bars (std). Two bars side by side, one group labeled "vs Teacher." Clean, paper-ready.
+- figure2_js_by_outcome.png — grouped bar chart: mean JS divergence for KD student split by outcome group (both correct / student wrong+teacher correct / both wrong). Error bars. This is the correlation-with-failure plot.
+- figure3_spearman_distribution.png — overlaid histogram or KDE: distribution of per-image Spearman r for KD student (blue) and baseline (orange). Shows spread, not just mean.
+
+## Inputs
+- results/divergence_scores.csv
+- results/accuracy.csv
+
+## Expected outputs
+- summarize.py
+- results/summary_stats.json
+- results/figures/figure1_js_divergence_bar.png
+- results/figures/figure2_js_by_outcome.png
+- results/figures/figure3_spearman_distribution.png
+
+## Constraints
+- Random seed: 42 everywhere
+- All hyperparameters and file paths read from config.yaml — nothing hardcoded
+- Figures must be publication quality: 300 DPI, no chart junk, axis labels, legend, title
+- Use matplotlib only — no seaborn
+- All figures saved with tight_layout()
+
+## Verify by
+Run python summarize.py and confirm: (1) results/summary_stats.json exists and contains all expected keys, (2) all three figures exist in results/figures/ and are non-empty files, (3) the mean JS numbers in the JSON match 0.121 for KD student and 0.136 for baseline within rounding.
+```
 
 ---
 > ⚠️ Prompts 1 and 2 below are Phase 1 artifacts (ViT/MobileViT/CIFAR-10). They are kept for reference. Phase 2 prompts begin after the state tracker above.
@@ -259,6 +478,36 @@ Run train_kd.py and confirm: (1) it prints per-epoch train loss and val accuracy
 4. **Never send a prompt without reading the state tracker.** The tracker prevents duplicate work and catches dependency errors.
 5. **If Claude Code produces something unexpected**, bring it back to this chat before deciding how to proceed. Do not improvise instructions inside the Claude Code session.
 6. **Config changes go in config.yaml, not in the prompt.** If we decide to change the temperature, batch size, or dataset, update the config file — do not hardcode it in the script.
+
+---
+
+## Formatting rule for prompt blocks — non-negotiable
+
+Any time a new Claude instance in this project writes a new prompt (whether Prompt N, a corrective follow-up, or a revised version of an existing prompt), it must wrap the entire prompt block using **four backticks**, not three. This is because the prompt body itself contains triple-backtick fences for code, and a three-backtick outer fence will break rendering and make the block un-copy-pasteable.
+
+The correct format is always:
+
+
+---
+
+Prompt [N]
+```
+
+## Context
+
+## Task
+
+## Inputs
+
+## Expected outputs
+
+## Constraints
+
+## Verify by
+```
+When adding a new prompt to the state tracker section, the format is:
+
+`---` on its own line, then `## Prompt [N]` as a heading, then the four-backtick fenced block. Never use three backticks for prompt blocks. Never wrap a prompt in a code block labeled `markdown` or any other language tag.
 
 ---
 
