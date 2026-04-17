@@ -159,6 +159,9 @@ def main():
         ("baseline",   baseline,   cam_baseline),
     ]
 
+    rng = np.random.default_rng(SEED)
+    figure_indices = set(rng.choice(len(dataset), size=10, replace=False).tolist())
+
     class_counter = {}
     for ds_idx in tqdm(range(len(dataset)), desc="Grad-CAMs"):
         img_tensor, true_label = dataset[ds_idx]
@@ -189,17 +192,17 @@ def main():
             kd_pred=np.int64(pred_indices["kd_student"]),
             baseline_pred=np.int64(pred_indices["baseline"]),
         )
-        save_figure(img_hw3, raw_maps, pred_names, true_class, stem)
+        if ds_idx in figure_indices:
+            save_figure(img_hw3, raw_maps, pred_names, true_class, stem)
 
     n_figs   = len(list(OUT_FIGS.glob("*.png")))
     n_arrays = len(list(OUT_ARRAYS.glob("*.npz")))
     print(f"\nDone.  Figures: {n_figs:,}  |  Arrays: {n_arrays:,}")
 
     import shutil
-    print("Zipping arrays …")
+    print("Zipping …")
     shutil.make_archive('/kaggle/working/gradcam_arrays', 'zip',
                         str(OUT_ARRAYS.parent), 'arrays')
-    print("Zipping figures …")
     shutil.make_archive('/kaggle/working/gradcam_figures', 'zip',
                         str(OUT_FIGS.parent), 'figures')
     print("Done.  Output: gradcam_arrays.zip  |  gradcam_figures.zip")
