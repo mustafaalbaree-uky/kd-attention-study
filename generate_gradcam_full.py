@@ -1,6 +1,6 @@
 """
 Grad-CAM generation for all ~3925 ImageNette test images.
-Kaggle version: checkpoints from /kaggle/input/kd-attention-checkpoints/.
+Kaggle version: checkpoints from /kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/.
 Outputs figures and arrays to /kaggle/working/results/gradcam_full/.
 """
 import tarfile
@@ -22,9 +22,9 @@ SEED        = 42
 NUM_CLASSES = 10
 IMG_SIZE    = 224
 
-CKPT_TEACHER  = "/kaggle/input/kd-attention-checkpoints/teacher_finetuned.pth"
-CKPT_KD       = "/kaggle/input/kd-attention-checkpoints/resnet18_kd.pth"
-CKPT_BASELINE = "/kaggle/input/kd-attention-checkpoints/resnet18_baseline.pth"
+CKPT_TEACHER  = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/teacher_finetuned.pth"
+CKPT_KD       = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/resnet18_kd.pth"
+CKPT_BASELINE = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/resnet18_baseline.pth"
 
 DATA_DIR       = Path("/kaggle/working/data")
 IMAGENETTE_DIR = DATA_DIR / "imagenette2-320"
