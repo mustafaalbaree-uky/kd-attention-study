@@ -1,11 +1,11 @@
 """
-Teacher fine-tuning: ResNet-50 on ImageNette.
+Knowledge Distillation training: ResNet-18 student ← frozen ResNet-50 teacher.
 
-Fine-tunes the full network (backbone + new FC head) so the teacher produces
-well-calibrated soft labels for KD. Must be run before train_kd.py.
+KD loss = alpha * T^2 * KL(student_soft || teacher_soft)
+        + (1 - alpha) * CrossEntropy(student_logits, hard_labels)
 
-Saves best checkpoint to checkpoints/teacher_finetuned.pth.
-All hyperparameters are read from config.yaml.
+Teacher is fully frozen. Checkpoint saved only when val_acc improves.
+All hyperparameters are read from config.yaml at the project root.
 """
 import csv
 import random
@@ -23,18 +23,25 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-# ── Config ─────────────────────────────────────────────────────────────────────
-with open("config.yaml") as f:
+# ── Paths ──────────────────────────────────────────────────────────────────────
+_HERE = Path(__file__).parent          # students/resnet18/
+_ROOT = _HERE.parent.parent            # project root
+
+with open(_ROOT / "config.yaml") as f:
     cfg = yaml.safe_load(f)
 
 SEED        = cfg["training"]["seed"]
 NUM_CLASSES = cfg["training"]["num_classes"]
+T           = cfg["training"]["kd_temperature"]
+ALPHA       = cfg["training"]["kd_alpha"]
 IMG_SIZE    = cfg["dataset"]["image_size"]
 BATCH_SIZE  = cfg["dataset"]["batch_size"]
 DATASET     = cfg["dataset"]["name"]
 
-NUM_EPOCHS  = 15
-LR          = 0.001  # lower LR — backbone is pretrained
+NUM_EPOCHS  = 30
+LR          = 0.01
+
+TEACHER_CKPT = _ROOT / "teacher" / "checkpoints" / "teacher_finetuned.pth"
 
 # ── Reproducibility ────────────────────────────────────────────────────────────
 random.seed(SEED)
@@ -42,7 +49,7 @@ np.random.seed(SEED)
 torch.manual_seed(SEED)
 torch.cuda.manual_seed_all(SEED)
 
-# ── Transforms (identical to train_kd.py) ─────────────────────────────────────
+# ── Transforms ─────────────────────────────────────────────────────────────────
 _norm = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                               std=[0.229, 0.224, 0.225])
 
@@ -81,27 +88,61 @@ class ImagenetteDataset(Dataset):
         return self.transform(image), item["label"]
 
 
+# ── Models ─────────────────────────────────────────────────────────────────────
+def load_teacher(num_classes):
+    if not TEACHER_CKPT.exists():
+        raise FileNotFoundError(
+            f"{TEACHER_CKPT} not found. Run teacher/train_teacher.py first."
+        )
+    model = models.resnet50(weights=None)
+    model.fc = nn.Linear(model.fc.in_features, num_classes)
+    model.load_state_dict(torch.load(TEACHER_CKPT, map_location="cpu"))
+    for p in model.parameters():
+        p.requires_grad_(False)
+    return model
+
+
+def load_student(num_classes):
+    model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+    model.fc = nn.Linear(model.fc.in_features, num_classes)
+    return model
+
+
+# ── KD loss ────────────────────────────────────────────────────────────────────
+def kd_loss(s_logits, t_logits, labels, T, alpha):
+    loss_hard  = F.cross_entropy(s_logits, labels)
+    s_log_soft = F.log_softmax(s_logits / T, dim=1)
+    t_soft     = F.softmax(t_logits / T, dim=1)
+    loss_kd    = F.kl_div(s_log_soft, t_soft, reduction="batchmean") * (T ** 2)
+    return alpha * loss_kd + (1.0 - alpha) * loss_hard, loss_kd, loss_hard
+
+
 # ── Train / eval helpers ───────────────────────────────────────────────────────
-def train_one_epoch(model, loader, optimizer, device):
-    model.train()
-    sum_loss = correct = seen = 0
+def train_one_epoch(student, teacher, loader, optimizer, device, T, alpha):
+    student.train()
+    sum_total = sum_kd = sum_hard = correct = seen = 0
 
     for images, labels in tqdm(loader, leave=False, desc="  train"):
         images, labels = images.to(device), labels.to(device)
 
-        logits = model(images)
-        loss   = F.cross_entropy(logits, labels)
+        with torch.no_grad():
+            t_logits = teacher(images)
+
+        s_logits = student(images)
+        loss, l_kd, l_hard = kd_loss(s_logits, t_logits, labels, T, alpha)
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        bs        = labels.size(0)
-        sum_loss += loss.item() * bs
-        correct  += (logits.argmax(1) == labels).sum().item()
-        seen     += bs
+        bs = labels.size(0)
+        sum_total += loss.item() * bs
+        sum_kd    += l_kd.item() * bs
+        sum_hard  += l_hard.item() * bs
+        correct   += (s_logits.argmax(1) == labels).sum().item()
+        seen      += bs
 
-    return sum_loss / seen, correct / seen
+    return sum_total / seen, sum_kd / seen, sum_hard / seen, correct / seen
 
 
 @torch.no_grad()
@@ -131,44 +172,52 @@ def main():
     val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False,
                               num_workers=2, pin_memory=True)
 
-    teacher = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
-    teacher.fc = nn.Linear(teacher.fc.in_features, NUM_CLASSES)
-    teacher = teacher.to(device)
+    teacher = load_teacher(NUM_CLASSES).to(device).eval()
+    student = load_student(NUM_CLASSES).to(device)
 
-    optimizer = torch.optim.SGD(teacher.parameters(), lr=LR,
+    optimizer = torch.optim.SGD(student.parameters(), lr=LR,
                                 momentum=0.9, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
 
-    Path("checkpoints").mkdir(exist_ok=True)
-    Path("results").mkdir(exist_ok=True)
+    ckpt_dir    = _HERE / "checkpoints"
+    results_dir = _HERE / "results"
+    ckpt_dir.mkdir(exist_ok=True)
+    results_dir.mkdir(exist_ok=True)
 
-    csv_path  = Path("results/teacher_training_log.csv")
-    ckpt_path = Path("checkpoints/teacher_finetuned.pth")
+    csv_path  = results_dir / "resnet18_kd_training_log.csv"
+    ckpt_path = ckpt_dir / "resnet18_kd.pth"
 
     with csv_path.open("w", newline="") as f:
-        csv.writer(f).writerow(["epoch", "train_loss", "train_acc", "val_acc"])
+        csv.writer(f).writerow(
+            ["epoch", "train_loss_total", "train_loss_kd",
+             "train_loss_hard", "train_acc", "val_acc"]
+        )
 
     best_val_acc = 0.0
 
     for epoch in range(1, NUM_EPOCHS + 1):
         print(f"\nEpoch {epoch}/{NUM_EPOCHS}")
-        tr_loss, tr_acc = train_one_epoch(teacher, train_loader, optimizer, device)
-        val_acc = evaluate(teacher, val_loader, device)
+        tr_loss, tr_kd, tr_hard, tr_acc = train_one_epoch(
+            student, teacher, train_loader, optimizer, device, T, ALPHA
+        )
+        val_acc = evaluate(student, val_loader, device)
         scheduler.step()
 
-        print(f"  loss={tr_loss:.4f}  train_acc={tr_acc:.4f}  val_acc={val_acc:.4f}")
+        print(f"  loss={tr_loss:.4f}  kd={tr_kd:.4f}  hard={tr_hard:.4f}"
+              f"  train_acc={tr_acc:.4f}  val_acc={val_acc:.4f}")
 
         with csv_path.open("a", newline="") as f:
             csv.writer(f).writerow([
-                epoch, f"{tr_loss:.6f}", f"{tr_acc:.6f}", f"{val_acc:.6f}",
+                epoch, f"{tr_loss:.6f}", f"{tr_kd:.6f}",
+                f"{tr_hard:.6f}", f"{tr_acc:.6f}", f"{val_acc:.6f}",
             ])
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            torch.save(teacher.state_dict(), ckpt_path)
+            torch.save(student.state_dict(), ckpt_path)
             print(f"  Saved checkpoint (val_acc={val_acc:.4f})")
 
-    print(f"\nTeacher fine-tuning complete. Best val_acc: {best_val_acc:.4f}")
+    print(f"\nTraining complete. Best val_acc: {best_val_acc:.4f}")
     print(f"Checkpoint -> {ckpt_path}")
     print(f"Log        -> {csv_path}")
 

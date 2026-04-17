@@ -1,0 +1,65 @@
+{
+  "js_divergence": {
+    "kd_student": {
+      "mean": 0.122308,
+      "std": 0.047409
+    },
+    "baseline": {
+      "mean": 0.135911,
+      "std": 0.052951
+    }
+  },
+  "spearman_r": {
+    "kd_student": {
+      "mean": 0.842911,
+      "std": 0.162975
+    },
+    "baseline": {
+      "mean": 0.818556,
+      "std": 0.171868
+    }
+  },
+  "js_by_outcome": {
+    "kd_student": {
+      "both_correct": {
+        "mean": 0.118738,
+        "std": 0.035753,
+        "n": 3851
+      },
+      "student_wrong_teacher_correct": {
+        "mean": 0.33892,
+        "std": 0.11905,
+        "n": 49
+      },
+      "both_wrong": {
+        "mean": 0.222727,
+        "std": 0.105851,
+        "n": 22
+      }
+    },
+    "baseline": {
+      "both_correct": {
+        "mean": 0.131797,
+        "std": 0.039991,
+        "n": 3848
+      },
+      "student_wrong_teacher_correct": {
+        "mean": 0.362028,
+        "std": 0.127467,
+        "n": 52
+      },
+      "both_wrong": {
+        "mean": 0.251007,
+        "std": 0.136956,
+        "n": 18
+      }
+    }
+  },
+  "top1_accuracy": {
+    "teacher": 0.9936,
+    "kd_student": 0.9819,
+    "baseline": 0.9822
+  },
+  "mann_whitney_u_statistic": 6162446.0,
+  "mann_whitney_p_value": 1.9703950142392115e-53
+}

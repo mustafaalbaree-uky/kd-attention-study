@@ -1,1 +1,10 @@
 data/
+*.pth
+*.npz
+*.zip
+__pycache__/
+*.DS_Store
+students/*/results/gradcam_full/
+students/*/results/kaggle_output/
+teacher/checkpoints/
+students/*/checkpoints/

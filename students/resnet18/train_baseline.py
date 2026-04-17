@@ -6,7 +6,7 @@ Loss = CrossEntropy(student_logits, hard_labels) — no teacher, no soft labels.
 Identical architecture, dataset, preprocessing, optimizer, scheduler, and
 number of epochs as train_kd.py so the two results are directly comparable.
 
-All hyperparameters are read from config.yaml.
+All hyperparameters are read from config.yaml at the project root.
 """
 import csv
 import random
@@ -24,8 +24,11 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-# ── Config ─────────────────────────────────────────────────────────────────────
-with open("config.yaml") as f:
+# ── Paths ──────────────────────────────────────────────────────────────────────
+_HERE = Path(__file__).parent          # students/resnet18/
+_ROOT = _HERE.parent.parent            # project root
+
+with open(_ROOT / "config.yaml") as f:
     cfg = yaml.safe_load(f)
 
 SEED        = cfg["training"]["seed"]
@@ -33,7 +36,6 @@ NUM_CLASSES = cfg["training"]["num_classes"]
 IMG_SIZE    = cfg["dataset"]["image_size"]
 BATCH_SIZE  = cfg["dataset"]["batch_size"]
 DATASET     = cfg["dataset"]["name"]
-STUDENT_ID  = cfg["models"]["student"]
 
 NUM_EPOCHS  = 30
 LR          = 0.01
@@ -146,11 +148,13 @@ def main():
                                 momentum=0.9, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
 
-    Path("checkpoints").mkdir(exist_ok=True)
-    Path("results").mkdir(exist_ok=True)
+    ckpt_dir    = _HERE / "checkpoints"
+    results_dir = _HERE / "results"
+    ckpt_dir.mkdir(exist_ok=True)
+    results_dir.mkdir(exist_ok=True)
 
-    csv_path  = Path("results/baseline_training_log.csv")
-    ckpt_path = Path("checkpoints/student_baseline.pth")
+    csv_path  = results_dir / "resnet18_baseline_training_log.csv"
+    ckpt_path = ckpt_dir / "resnet18_baseline.pth"
 
     with csv_path.open("w", newline="") as f:
         csv.writer(f).writerow(["epoch", "train_loss", "train_acc", "val_acc"])

@@ -1,5 +1,5 @@
 # Research design — first draft
-**Project:** Does knowledge distillation preserve visual reasoning?
+**Project:** Does knowledge distillation produce greater saliency alignment than hard-label training?
 **Architecture:** ResNet-50 (teacher) → ResNet-18 (student) — pure CNN pipeline
 **Dataset:** ImageNette (10-class ImageNet subset, 224×224)
 **Course:** Deep learning (599 section) · 2-person team
@@ -13,36 +13,31 @@ Knowledge distillation (KD) is a widely used technique for compressing large neu
 
 But accuracy is a blunt instrument. A model can get the right answer for the wrong reason. Two models can agree on a label while attending to completely different parts of an image to reach that decision.
 
-**The gap:** We do not know whether KD transfers *how* a teacher model reasons visually, or merely *what* it concludes. Prior work does not systematically compare the internal visual focus of teacher and student models on matched inputs.
-
+**The gap:** KD only constrains the student to match the teacher's output distribution — it never touches the teacher's internal representations. So the question is not whether KD transfers reasoning (the mechanism makes that unlikely by design), but whether output-matching pressure *incidentally* produces greater saliency alignment than standard hard-label training. Prior work does not systematically test this.
 ---
 
-## 2. Research question
+### 2. Research question
 
-> Does a student model trained via knowledge distillation attend to the same image regions as its teacher — and when it diverges, does that divergence predict when the student will fail?
+> Does training with soft teacher labels produce greater Grad-CAM saliency alignment with the teacher than training with hard labels alone — and when the KD student's saliency diverges from the teacher's, does that divergence predict student failure?
 
 This breaks into two sub-questions:
 
-- **2a.** Do teacher and student produce similar Grad-CAM attention maps on images they both classify correctly?
-- **2b.** Is attention divergence between teacher and student correlated with student classification errors?
+- **2a.** Does the KD student produce Grad-CAM maps more similar to the teacher than the baseline student does, on images all three models classify correctly?
+- **2b.** Within the KD student, is saliency divergence from the teacher correlated with student classification errors?
 
 ---
 
-## 3. Hypothesis and null hypothesis
-
-In traditional science, a hypothesis is a testable prediction. In AI research, this is sometimes called a **claim** — what you assert your experiment will demonstrate. The null hypothesis is what you assume is true until your results give you reason to reject it.
-
 ### Hypothesis (our claim)
-Knowledge distillation transfers output accuracy but does **not** reliably transfer visual reasoning strategy. Specifically:
+Training with soft teacher labels produces greater Grad-CAM saliency alignment with the teacher than training on hard labels alone. Specifically:
 
-- The student will achieve competitive top-1 accuracy relative to the teacher (within ~5 percentage points).
-- On images both models classify correctly, a meaningful proportion (~30–50%) will show **substantial divergence** in Grad-CAM activation maps.
-- On images the student misclassifies, Grad-CAM maps will show higher divergence from the teacher than on correctly classified images — suggesting that reasoning misalignment is predictive of failure.
+- Both students will achieve competitive top-1 accuracy relative to the teacher (within ~5 percentage points).
+- The KD student's Grad-CAM maps will show higher mean similarity to the teacher than the baseline student's maps, on images all three classify correctly.
+- Within the KD student, saliency divergence from the teacher will be higher on images the student misclassifies than on images it gets right.
 
 ### Null hypothesis
-There is no systematic difference in Grad-CAM activation patterns between teacher and student beyond random variation. Any observed divergence is not correlated with classification outcome.
+There is no systematic difference in Grad-CAM saliency alignment between the KD student and the baseline student, relative to the teacher. Any observed difference is not correlated with classification outcome.
 
-*We aim to reject the null. If we cannot, that is also a valid and interesting finding — it would suggest KD transfers more than just labels.*
+*We aim to reject the null. If we cannot, that is also a meaningful finding — it would suggest that output-matching pressure does not incidentally produce saliency alignment, and that the two phenomena are independent.*
 
 ---
 
@@ -56,7 +51,7 @@ These are what we deliberately change or compare across conditions.
 | Model type | Teacher (ResNet-50) vs. Student (ResNet-18) |
 | Training method | KD-trained student vs. baseline student (trained without teacher) |
 
-The baseline student is important: it lets us ask whether any differences we see are due to KD specifically, or just due to model size difference.
+The baseline student is the primary comparison point: it lets us isolate whether greater saliency alignment (if observed) is due to KD specifically, or just a consequence of reduced model capacity. Without it, we cannot attribute anything to the training procedure.
 
 ### 4.2 Dependent variables
 These are what we measure as outcomes.
@@ -125,7 +120,7 @@ Rationale for dataset choice: ResNet's final convolutional layer on a 224×224 i
 - Qualitatively: teacher tends to focus on the object; student sometimes focuses on background cues or texture
 
 ### What would surprise us
-- Perfect attention map alignment between teacher and student — would suggest KD transfers reasoning strategy completely
+- The KD student and baseline student showing equivalent saliency alignment to the teacher — would suggest KD's output-matching pressure produces no incidental alignment effect
 - No correlation between divergence and failure — would suggest attention maps are not informative of confidence or correctness
 - Student outperforming teacher — unlikely but possible on small datasets
 
@@ -148,7 +143,7 @@ Rationale for dataset choice: ResNet's final convolutional layer on a 224×224 i
 
 ## 8. Anticipated limitations
 
-- **Grad-CAM is imperfect.** It approximates where a model "looks" but does not capture the full internal reasoning. High SSIM does not guarantee the same reasoning; low SSIM does not guarantee different reasoning.
+- **Grad-CAM is imperfect and unstable.** It is a coarse, first-order approximation — its resolution is bounded by the spatial size of the chosen feature map (7×7 for ResNet on 224×224 inputs), and it can be sensitive to gradient noise. More importantly, observed differences in saliency maps between teacher and student may reflect architectural differences or gradient instability rather than any meaningful divergence in how the two models process images. We interpret map similarity as a measurable proxy for saliency alignment, not as evidence of shared or divergent internal reasoning.
 - **ImageNette is not full ImageNet.** Results on a 10-class subset may not generalize to the full 1000-class setting. The 10 ImageNette classes are also visually distinct, which may make the teacher's task easier than a more fine-grained benchmark would.
 - **Generalizability.** Results on one teacher–student pair and one dataset may not generalize to other architectures or domains.
 - **Correlation vs. causation.** We can show that attention divergence correlates with failure; we cannot prove it causes failure.
@@ -157,7 +152,7 @@ Rationale for dataset choice: ResNet's final convolutional layer on a 224×224 i
 
 ## 9. What this is not claiming
 
-We are not claiming KD is flawed or that accuracy is a bad metric. We are asking a narrower, prior question: *what does KD actually transfer?* Understanding that is a prerequisite for knowing when to trust a distilled model.
+We are not claiming KD is flawed or that accuracy is a bad metric. We are also not claiming saliency maps reveal internal reasoning — the professor's feedback is explicit that similar heatmaps do not guarantee similar reasoning. We are asking a narrower question: does the pressure to match a teacher's output distribution produce any measurable incidental effect on saliency alignment, compared to a model trained without that pressure? The results, whatever they are, are informative about what KD actually does beyond the accuracy numbers.
 
 ---
 

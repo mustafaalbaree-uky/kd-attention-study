@@ -1,14 +1,13 @@
 """
-Knowledge Distillation training: ResNet-18 student ← frozen ResNet-50 teacher.
+Knowledge Distillation training: MobileNetV2 student ← frozen ResNet-50 teacher.
 
 KD loss = alpha * T^2 * KL(student_soft || teacher_soft)
         + (1 - alpha) * CrossEntropy(student_logits, hard_labels)
 
 Teacher is fully frozen. Checkpoint saved only when val_acc improves.
-All hyperparameters are read from config.yaml.
+All hyperparameters are read from config.yaml at the project root.
 """
 import csv
-import os
 import random
 from pathlib import Path
 
@@ -24,8 +23,11 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-# ── Config ─────────────────────────────────────────────────────────────────────
-with open("config.yaml") as f:
+# ── Paths ──────────────────────────────────────────────────────────────────────
+_HERE = Path(__file__).parent          # students/mobilenet/
+_ROOT = _HERE.parent.parent            # project root
+
+with open(_ROOT / "config.yaml") as f:
     cfg = yaml.safe_load(f)
 
 SEED        = cfg["training"]["seed"]
@@ -35,11 +37,11 @@ ALPHA       = cfg["training"]["kd_alpha"]
 IMG_SIZE    = cfg["dataset"]["image_size"]
 BATCH_SIZE  = cfg["dataset"]["batch_size"]
 DATASET     = cfg["dataset"]["name"]
-TEACHER_ID  = cfg["models"]["teacher"]
-STUDENT_ID  = cfg["models"]["student"]
 
 NUM_EPOCHS  = 30
 LR          = 0.01
+
+TEACHER_CKPT = _ROOT / "teacher" / "checkpoints" / "teacher_finetuned.pth"
 
 # ── Reproducibility ────────────────────────────────────────────────────────────
 random.seed(SEED)
@@ -88,34 +90,31 @@ class ImagenetteDataset(Dataset):
 
 # ── Models ─────────────────────────────────────────────────────────────────────
 def load_teacher(num_classes):
-    ckpt = Path("checkpoints/teacher_finetuned.pth")
-    if not ckpt.exists():
+    if not TEACHER_CKPT.exists():
         raise FileNotFoundError(
-            "checkpoints/teacher_finetuned.pth not found. "
-            "Run train_teacher.py first."
+            f"{TEACHER_CKPT} not found. Run teacher/train_teacher.py first."
         )
     model = models.resnet50(weights=None)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
-    model.load_state_dict(torch.load(ckpt, map_location="cpu"))
+    model.load_state_dict(torch.load(TEACHER_CKPT, map_location="cpu"))
     for p in model.parameters():
         p.requires_grad_(False)
     return model
 
 
 def load_student(num_classes):
-    model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-    model.fc = nn.Linear(model.fc.in_features, num_classes)
+    model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.IMAGENET1K_V1)
+    model.classifier[1] = nn.Linear(model.classifier[1].in_features, num_classes)
     return model
 
 
 # ── KD loss ────────────────────────────────────────────────────────────────────
 def kd_loss(s_logits, t_logits, labels, T, alpha):
-    loss_hard = F.cross_entropy(s_logits, labels)
+    loss_hard  = F.cross_entropy(s_logits, labels)
     s_log_soft = F.log_softmax(s_logits / T, dim=1)
     t_soft     = F.softmax(t_logits / T, dim=1)
     loss_kd    = F.kl_div(s_log_soft, t_soft, reduction="batchmean") * (T ** 2)
-    total = alpha * loss_kd + (1.0 - alpha) * loss_hard
-    return total, loss_kd, loss_hard
+    return alpha * loss_kd + (1.0 - alpha) * loss_hard, loss_kd, loss_hard
 
 
 # ── Train / eval helpers ───────────────────────────────────────────────────────
@@ -180,11 +179,13 @@ def main():
                                 momentum=0.9, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
 
-    Path("checkpoints").mkdir(exist_ok=True)
-    Path("results").mkdir(exist_ok=True)
+    ckpt_dir    = _HERE / "checkpoints"
+    results_dir = _HERE / "results"
+    ckpt_dir.mkdir(exist_ok=True)
+    results_dir.mkdir(exist_ok=True)
 
-    csv_path  = Path("results/kd_training_log.csv")
-    ckpt_path = Path("checkpoints/student_kd.pth")
+    csv_path  = results_dir / "mobilenet_kd_training_log.csv"
+    ckpt_path = ckpt_dir / "mobilenet_kd.pth"
 
     with csv_path.open("w", newline="") as f:
         csv.writer(f).writerow(

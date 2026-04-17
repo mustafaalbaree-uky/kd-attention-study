@@ -35,10 +35,11 @@ Claude Code does not write Kaggle-specific notebook cells. It writes standard Py
 
 **Deliverables from implementation:**
 - `results/accuracy.csv` — top-1 accuracy for all three models
-- `results/gradcam_200/` — side-by-side Grad-CAM figures (teacher | KD student | baseline student) for 200 stratified test images
-- `results/gradcam_full/` — same figures for all ~3925 test images (Kaggle full run)
-- `results/similarity_scores.csv` — per-image SSIM scores, predicted labels, true labels, correctness flags
-- `results/summary_stats.json` — mean SSIM by outcome group, accuracy numbers
+- `results/gradcam_full/arrays/` — 3,925 .npz files (full ImageNette validation set), one per image, keys: teacher, kd_student, baseline — 7×7 maps summing to 1.0 plus metadata
+- `results/gradcam_full/figures/` — 3,925 PNGs: 1×4 grid (original | teacher | KD student | baseline)
+- `results/divergence_scores.csv` — per-image JS divergence and Spearman r for both students vs teacher, correctness flags, 3,925 rows
+- `results/summary_stats.json` — mean JS divergence by outcome group, Mann-Whitney U test results, accuracy numbers
+- `results/figures/` — publication-ready figures (300 DPI)
 - All code, config files, and a README with exact reproduction steps
 
 **Key constraints:**
@@ -130,47 +131,40 @@ Every prompt sent to Claude Code follows this exact template. Do not deviate fro
            divergence found in Step 6 cannot be attributed to accuracy differences between
            the two students.
 
-[x] Step 5 — Grad-CAM generation (200 stratified test images)
-    Files produced:
-      - generate_gradcam.py
-      - results/gradcam_200/figures/ (200 PNGs: 1×4 grid — original | teacher | KD student | baseline, labeled with predicted class)
-      - results/gradcam_200/arrays/ (200 .npz files: keys teacher, kd_student, baseline — 7×7 maps summing to 1.0 — plus scalar metadata true_label, teacher_pred, kd_pred, baseline_pred)
-    Notes: Native 7×7 maps extracted by bypassing pytorch-grad-cam's built-in upsample.
-           One GradCAM object per model created outside the loop for efficiency.
-           Maps sum-normalized to 1.0 for npz storage; max-normalized separately for figure overlays.
-           Output folder renamed gradcam_200 to distinguish from the full Kaggle run.
+[DEPRECATED] Step 5 — Grad-CAM generation (200 stratified test images)
+    Notes: Superseded by Step 5b. results/gradcam_200/ has been deleted locally.
+           generate_gradcam.py retained in repo for reference only.
 
-[ ] Step 5b — Grad-CAM generation (full ~3925 test images, Kaggle)
+[x] Step 5b — Grad-CAM generation (full ImageNette validation set, Kaggle)
     Files produced:
       - generate_gradcam_full.py (pushed to main: efb46ae)
-    Outputs (written by Kaggle, not local):
-      - /kaggle/working/results/gradcam_full/figures/ (~3925 PNGs, 4-digit index)
-      - /kaggle/working/results/gradcam_full/arrays/ (~3925 .npz files)
-    Notes: Standalone script — no config.yaml dependency, all paths hardcoded for Kaggle.
-           Checkpoints read from /kaggle/input/kd-attention-checkpoints/.
-           No stratified sampling — iterates all val images via range(len(dataset)).
-           Run with: python generate_gradcam_full.py
+      - results/gradcam_full/arrays/ (3,925 .npz files: keys teacher, kd_student, baseline — 7×7 maps summing to 1.0 — plus scalar metadata true_label, teacher_pred, kd_pred, baseline_pred)
+      - results/gradcam_full/figures/ (3,925 PNGs: 1×4 grid — original | teacher | KD student | baseline)
+    Notes: Runs on the ImageNette val split (3,925 images — the correct evaluation split;
+           training images are excluded from Grad-CAM analysis). Standalone script, all paths
+           hardcoded for Kaggle. Checkpoints read from /kaggle/input/kd-attention-checkpoints/.
+           Arrays and figures downloaded and placed locally. This is the primary Grad-CAM output.
 
-[x] Step 6 — Divergence scoring (JS divergence + Spearman)
+[x] Step 6 — Divergence scoring (JS divergence + Spearman, full validation set)
     Files produced:
-      - score_divergence.py
-      - results/divergence_scores.csv (200 rows, no NaNs, JS in [0,1], Spearman in [-1,1])
-    Notes: KD student mean JS distance from teacher: 0.121. Baseline mean JS distance from
-           teacher: 0.136. KD student shows lower divergence from teacher than baseline —
-           consistent with hypothesis. This is the headline number for the paper.
+      - score_divergence.py (input path updated to results/gradcam_full/arrays/)
+      - results/divergence_scores.csv (3,925 rows, no NaNs, JS in [0,1], Spearman in [-1,1])
+    Notes: KD student mean JS distance from teacher: 0.1223. Baseline mean JS distance from
+           teacher: 0.1359. KD student shows consistently lower divergence from teacher —
+           consistent with hypothesis. Progress printed every 200 images.
 
-[x] Step 7 — Summary stats and figures
+[x] Step 7 — Summary stats, figures, and statistical significance test
     Files produced:
-      - summarize.py
-      - results/summary_stats.json (all expected keys present; JS means: KD=0.121267, baseline=0.136459)
-      - results/figures/figure1_js_divergence_bar.png (~97–103 KB)
-      - results/figures/figure2_js_by_outcome.png (~97–103 KB)
-      - results/figures/figure3_spearman_distribution.png (~97–103 KB)
-    Notes: Main result confirmed — JS divergence rises monotonically with failure:
-           0.118 (both correct, n=198) → 0.332 (student wrong + teacher correct, n=1)
-           → 0.570 (both wrong, n=1). Small n in failure groups is expected given
-           ~98% accuracy on the 200-image sample. Spearman r: KD mean 0.839 vs
-           baseline 0.812. All figures 300 DPI, paper-ready.
+      - summarize.py (updated with Mann-Whitney U test, alternative='less')
+      - results/summary_stats.json (JS means, stds, outcome-group breakdown,
+        mann_whitney_u_statistic=6162446, mann_whitney_p_value=1.97e-53)
+      - results/figures/figure1_js_divergence_bar.png (regenerated, 300 DPI)
+      - results/figures/figure2_js_by_outcome.png (regenerated, 300 DPI)
+      - results/figures/figure3_spearman_distribution.png (regenerated, 300 DPI)
+    Notes: Mann-Whitney U=6,162,446, p=1.97×10⁻⁵³ — extremely strong evidence that KD
+           student JS divergence is statistically lower than baseline (one-tailed test in
+           direction of hypothesis). This is the headline statistical result for the paper.
+           Figures regenerated against full 3,925-image validation set.
 ```
 
 ---
@@ -394,6 +388,66 @@ Figures to produce and save to results/figures/:
 
 ## Verify by
 Run python summarize.py and confirm: (1) results/summary_stats.json exists and contains all expected keys, (2) all three figures exist in results/figures/ and are non-empty files, (3) the mean JS numbers in the JSON match 0.121 for KD student and 0.136 for baseline within rounding.
+```
+
+---
+## Prompt 7
+
+```
+## Context
+Phase 2 Step 5b is complete. We have 3,925 .npz files in results/gradcam_full/arrays/, each containing three 7×7 Grad-CAM maps (teacher, kd_student, baseline) normalized to sum to 1.0, plus per-image prediction metadata. The previous divergence_scores.csv was computed on only 200 images and is now retired. We need to rerun scoring on the full 3,925-image validation set.
+
+## Task
+Update score_divergence.py to read from results/gradcam_full/arrays/ instead of results/gradcam_200/arrays/, then rerun it to produce a new divergence_scores.csv with 3,925 rows.
+
+## Inputs
+- results/gradcam_full/arrays/ — 3,925 .npz files
+- config.yaml
+- score_divergence.py (existing script — change the input path only, touch nothing else)
+
+## Expected outputs
+- score_divergence.py (updated input path)
+- results/divergence_scores.csv — 3,925 rows, columns: filename, true_label, teacher_pred, kd_pred, baseline_pred, teacher_correct, kd_correct, baseline_correct, js_teacher_kd, js_teacher_baseline, spearman_teacher_kd, spearman_teacher_baseline
+
+## Constraints
+- Random seed: 42 everywhere
+- Do not change the scoring logic — only the input directory path
+- Print progress every 200 images
+- Print mean js_teacher_kd and mean js_teacher_baseline to stdout when done
+
+## Verify by
+Run python score_divergence.py and confirm: (1) results/divergence_scores.csv has exactly 3,925 rows plus header, (2) all js_ columns are in [0,1], (3) all spearman_ columns are in [-1,1], (4) mean JS values print to stdout.
+```
+
+---
+## Prompt 8
+
+```
+## Context
+Phase 2 Step 6 is complete. results/divergence_scores.csv now has 3,925 rows. We need to regenerate all summary statistics and figures against the full validation set, and add a Mann-Whitney U test comparing the KD and baseline JS distributions to give us a defensible p-value for the headline result.
+
+## Task
+Update summarize.py to (1) read from the 3,925-row divergence_scores.csv, (2) add a Mann-Whitney U test between js_teacher_kd and js_teacher_baseline columns, and (3) regenerate all three figures and summary_stats.json.
+
+## Inputs
+- results/divergence_scores.csv (3,925 rows)
+- results/accuracy.csv
+
+## Expected outputs
+- summarize.py (updated)
+- results/summary_stats.json — same structure as before, plus new keys: mann_whitney_u_statistic, mann_whitney_p_value
+- results/figures/figure1_js_divergence_bar.png (regenerated)
+- results/figures/figure2_js_by_outcome.png (regenerated)
+- results/figures/figure3_spearman_distribution.png (regenerated)
+
+## Constraints
+- Random seed: 42 everywhere
+- Mann-Whitney U test: use scipy.stats.mannwhitneyu with alternative='less' (one-tailed — testing that KD JS is lower than baseline JS, the direction of the hypothesis)
+- Print the U statistic and p-value to stdout
+- All figures 300 DPI, tight_layout(), matplotlib only
+
+## Verify by
+Run python summarize.py and confirm: (1) results/summary_stats.json contains mann_whitney_u_statistic and mann_whitney_p_value keys, (2) all three figures are regenerated, (3) U statistic and p-value print to stdout.
 ```
 
 ---

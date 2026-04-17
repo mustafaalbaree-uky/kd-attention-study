@@ -101,9 +101,9 @@ The project — what this is all building toward — is not revealed until Lesso
 
 **What this lesson covers, step by step:**
 
-Start here: an image is a grid of colored dots called pixels. Each pixel is three numbers — one for how red it is, one for how green, one for how blue — each between 0 and 255. A 32×32 image therefore contains exactly 32 × 32 × 3 = 3,072 numbers. Nothing else. That is the input to a neural network: a list of 3,072 numbers.
+Start here: an image is a grid of colored dots called pixels. Each pixel is three numbers — one for how red it is, one for how green, one for how blue — each between 0 and 255. A 224×224 image therefore contains exactly 224 × 224 × 3 = 150,528 numbers. Nothing else. That is the input to a neural network: a list of 150,528 numbers.
 
-Now describe what happens in one layer. Pick a single output number to focus on. To produce it, the layer takes every one of the 3,072 input numbers, multiplies each one by some amount, and adds all the results together. The amounts it multiplies by are called weights. Show this with tiny fake numbers: 3 inputs, 1 output, 3 weights. Show the arithmetic. Now explain that the layer does this not once but once per output — if the layer has 512 outputs, it does this 512 times, each time with a different set of weights.
+Now describe what happens in one layer. Pick a single output number to focus on. To produce it, the layer takes every one of the 150,528 input numbers, multiplies each one by some amount, and adds all the results together. The amounts it multiplies by are called weights. Show this with tiny fake numbers: 3 inputs, 1 output, 3 weights. Show the arithmetic. Now explain that the layer does this not once but once per output — if the layer has 512 outputs, it does this 512 times, each time with a different set of weights.
 
 Now explain why stacking these layers alone doesn't work. If you only ever multiply and add, then no matter how many layers you stack, the whole thing is mathematically equivalent to one single multiply-and-add. You get no benefit from depth. This is the problem.
 
@@ -219,8 +219,6 @@ A single layer has many filters. Each filter detects a different pattern. One mi
 
 As you go deeper in the network, two things happen: the spatial size of the feature maps shrinks (because the windows have been sliding and combining information), and each location in a map represents a larger area of the original image. A single cell in a deep feature map might correspond to a 100×100 region of the input. This region is called the receptive field.
 
-For Vision Transformers (relevant because our teacher model is a ViT): the ViT cuts the image into fixed patches (16×16 pixels each) and treats each patch as one unit. Each patch is turned into a single number-vector (the patch embedding). The network then computes relationships between all patches simultaneously — every patch can directly communicate with every other patch. The result is still a spatially meaningful representation — certain patches become more important than others depending on the image — but the mechanism is different from sliding windows. You do not need to understand the full attention mechanism now. The key point is that the intermediate representations in a ViT still carry information about which parts of the image are relevant.
-
 **The question this leaves open:** We now know that inside the network, there are grids of numbers where high values correspond to the network detecting a pattern at a specific location in the image. We also know from Lesson 2 that gradients tell us how much each thing contributes to the final answer. What happens if we compute the gradient of the final answer with respect to these spatial grids?
 
 ---
@@ -257,7 +255,7 @@ Now state its limitations clearly. Grad-CAM is a first-order approximation. It o
 
 This is the reveal lesson. The project is described for the first time.
 
-Lay out the three models: a ResNet-50 teacher (large, pre-trained on ImageNet), a ResNet-18 student trained with knowledge distillation against the teacher, and a baseline ResNet-18 student trained against hard labels only. Both student models share identical architecture — the only difference is training procedure. All three have been trained on a 10-class image dataset (CIFAR-10). All three achieve high classification accuracy. The question is not about accuracy.
+Lay out the three models: a ResNet-50 teacher (large, pre-trained on ImageNet), a ResNet-18 student trained with knowledge distillation against the teacher, and a baseline ResNet-18 student trained against hard labels only. Both student models share identical architecture — the only difference is training procedure. All three have been trained on ImageNette — a 10-class subset of ImageNet at 224×224 resolution. All three achieve high classification accuracy. The question is not about accuracy.
 
 State the experimental question precisely: when we generate Grad-CAM heatmaps for the teacher and the KD student on the same 200 test images, do the heatmaps look similar? And when they don't — when the student's heatmap diverges from the teacher's — is that divergence correlated with the student making a wrong prediction?
 

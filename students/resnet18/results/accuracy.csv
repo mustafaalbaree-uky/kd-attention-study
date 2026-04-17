@@ -1,0 +1,4 @@
+model_name,checkpoint,test_accuracy
+teacher_resnet50,checkpoints/teacher_finetuned.pth,0.9936
+student_kd_resnet18,checkpoints/resnet18_kd.pth,0.9819
+student_baseline_resnet18,checkpoints/resnet18_baseline.pth,0.9822

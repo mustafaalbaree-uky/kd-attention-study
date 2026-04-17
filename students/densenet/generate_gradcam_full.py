@@ -1,8 +1,11 @@
 """
-Grad-CAM generation for all ~3925 ImageNette test images.
-Kaggle version: checkpoints from /kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/.
+Grad-CAM generation for all ~3925 ImageNette test images — DenseNet-121 student.
+Kaggle version: checkpoints from /kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints-densenet/.
 Outputs figures and arrays to /kaggle/working/results/gradcam_full/.
+
+Grad-CAM target layer: model.features.denseblock4 (last dense block).
 """
+import shutil
 import tarfile
 import urllib.request
 from pathlib import Path
@@ -23,8 +26,8 @@ NUM_CLASSES = 10
 IMG_SIZE    = 224
 
 CKPT_TEACHER  = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/teacher_finetuned.pth"
-CKPT_KD       = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/resnet18_kd.pth"
-CKPT_BASELINE = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/resnet18_baseline.pth"
+CKPT_KD       = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints-densenet/densenet_kd.pth"
+CKPT_BASELINE = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints-densenet/densenet_baseline.pth"
 
 DATA_DIR       = Path("/kaggle/working/data")
 IMAGENETTE_DIR = DATA_DIR / "imagenette2-320"
@@ -80,9 +83,9 @@ def load_resnet50(path):
     return m.eval().to(DEVICE)
 
 
-def load_resnet18(path):
-    m = models.resnet18(weights=None)
-    m.fc = nn.Linear(m.fc.in_features, NUM_CLASSES)
+def load_densenet(path):
+    m = models.densenet121(weights=None)
+    m.classifier = nn.Linear(m.classifier.in_features, NUM_CLASSES)
     m.load_state_dict(torch.load(path, map_location="cpu"))
     return m.eval().to(DEVICE)
 
@@ -124,8 +127,8 @@ def save_figure(img, raw_maps, pred_names, true_class, stem):
     axes[0].axis("off")
     for ax, (key, label) in zip(axes[1:], [
         ("teacher",    "Teacher (ResNet-50)"),
-        ("kd_student", "KD Student (ResNet-18)"),
-        ("baseline",   "Baseline (ResNet-18)"),
+        ("kd_student", "KD Student (DenseNet-121)"),
+        ("baseline",   "Baseline (DenseNet-121)"),
     ]):
         ax.imshow(make_overlay(img, raw_maps[key]))
         ax.set_title(f"{label}\npred: {pred_names[key]}", fontsize=9)
@@ -147,12 +150,12 @@ def main():
 
     print("Loading models …")
     teacher    = load_resnet50(CKPT_TEACHER)
-    kd_student = load_resnet18(CKPT_KD)
-    baseline   = load_resnet18(CKPT_BASELINE)
+    kd_student = load_densenet(CKPT_KD)
+    baseline   = load_densenet(CKPT_BASELINE)
 
     cam_teacher  = GradCAM(model=teacher,    target_layers=[teacher.layer4[-1]])
-    cam_kd       = GradCAM(model=kd_student, target_layers=[kd_student.layer4[-1]])
-    cam_baseline = GradCAM(model=baseline,   target_layers=[baseline.layer4[-1]])
+    cam_kd       = GradCAM(model=kd_student, target_layers=[kd_student.features.denseblock4])
+    cam_baseline = GradCAM(model=baseline,   target_layers=[baseline.features.denseblock4])
     model_cams   = [
         ("teacher",    teacher,    cam_teacher),
         ("kd_student", kd_student, cam_kd),
@@ -199,7 +202,6 @@ def main():
     n_arrays = len(list(OUT_ARRAYS.glob("*.npz")))
     print(f"\nDone.  Figures: {n_figs:,}  |  Arrays: {n_arrays:,}")
 
-    import shutil
     print("Zipping …")
     shutil.make_archive('/kaggle/working/gradcam_arrays', 'zip',
                         str(OUT_ARRAYS.parent), 'arrays')
