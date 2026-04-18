@@ -1,9 +1,14 @@
 """
-Grad-CAM generation for all ~3925 ImageNette test images — MobileNetV2 student.
-Kaggle version: checkpoints from /kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints-mobilenet/.
-Outputs figures and arrays to /kaggle/working/results/gradcam_full/.
+Grad-CAM generation for all ~3925 ImageNette val images — MobileNetV2 student.
+Downloads ImageNette from fast.ai if not already present.
+Outputs arrays and figures to students/mobilenet/results/gradcam_full/.
 
-Grad-CAM target layer: model.features[-1] (last ConvBNActivation block).
+Teacher checkpoint: prefers Kaggle dataset input path, falls back to
+                    teacher/checkpoints/teacher_finetuned.pth (local).
+Student checkpoints: students/mobilenet/checkpoints/ (locally trained).
+
+Usage (from any directory):
+    python students/mobilenet/generate_gradcam_full.py
 """
 import shutil
 import tarfile
@@ -21,20 +26,27 @@ from PIL import Image as PILImage
 from pytorch_grad_cam import GradCAM
 from tqdm import tqdm
 
+_HERE = Path(__file__).parent          # students/mobilenet/
+_ROOT = _HERE.parent.parent            # project root
+
 SEED        = 42
 NUM_CLASSES = 10
 IMG_SIZE    = 224
 
-CKPT_TEACHER  = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/teacher_finetuned.pth"
-CKPT_KD       = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints-mobilenet/mobilenet_kd.pth"
-CKPT_BASELINE = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints-mobilenet/mobilenet_baseline.pth"
+# Teacher checkpoint: prefer Kaggle dataset input, fall back to local copy
+_TEACHER_KAGGLE = Path("/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/teacher_finetuned.pth")
+_TEACHER_LOCAL  = _ROOT / "teacher" / "checkpoints" / "teacher_finetuned.pth"
+CKPT_TEACHER    = _TEACHER_KAGGLE if _TEACHER_KAGGLE.exists() else _TEACHER_LOCAL
 
-DATA_DIR       = Path("/kaggle/working/data")
+CKPT_KD       = _HERE / "checkpoints" / "mobilenet_kd.pth"
+CKPT_BASELINE = _HERE / "checkpoints" / "mobilenet_baseline.pth"
+
+DATA_DIR       = _ROOT / "data"
 IMAGENETTE_DIR = DATA_DIR / "imagenette2-320"
 IMAGENETTE_URL = "https://s3.amazonaws.com/fast-ai-imageclas/imagenette2-320.tgz"
 
-OUT_FIGS   = Path("/kaggle/working/results/gradcam_full/figures")
-OUT_ARRAYS = Path("/kaggle/working/results/gradcam_full/arrays")
+OUT_FIGS   = _HERE / "results" / "gradcam_full" / "figures"
+OUT_ARRAYS = _HERE / "results" / "gradcam_full" / "arrays"
 
 IMAGENETTE_LABELS = {
     "n01440764": "tench",           "n02102040": "english_springer",
@@ -67,8 +79,12 @@ def download_imagenette():
     DATA_DIR.mkdir(exist_ok=True)
     tgz = DATA_DIR / "imagenette2-320.tgz"
     print("Downloading ImageNette (~330 MB) …")
-    urllib.request.urlretrieve(IMAGENETTE_URL, tgz,
-        reporthook=lambda n, bs, ts: print(f"\r  {min(n*bs/ts*100,100):.1f}%", end="", flush=True))
+    urllib.request.urlretrieve(
+        IMAGENETTE_URL, tgz,
+        reporthook=lambda n, bs, ts: print(
+            f"\r  {min(n * bs / ts * 100, 100):.1f}%", end="", flush=True
+        ),
+    )
     print("\nExtracting …")
     with tarfile.open(tgz) as t:
         t.extractall(DATA_DIR)
@@ -139,7 +155,11 @@ def save_figure(img, raw_maps, pred_names, true_class, stem):
 
 
 def main():
-    print(f"Device: {DEVICE}")
+    print(f"Device  : {DEVICE}")
+    print(f"Teacher : {CKPT_TEACHER}")
+    print(f"KD      : {CKPT_KD}")
+    print(f"Baseline: {CKPT_BASELINE}\n")
+
     download_imagenette()
     OUT_FIGS.mkdir(parents=True, exist_ok=True)
     OUT_ARRAYS.mkdir(parents=True, exist_ok=True)
@@ -202,12 +222,16 @@ def main():
     n_arrays = len(list(OUT_ARRAYS.glob("*.npz")))
     print(f"\nDone.  Figures: {n_figs:,}  |  Arrays: {n_arrays:,}")
 
-    print("Zipping …")
-    shutil.make_archive('/kaggle/working/gradcam_arrays', 'zip',
-                        str(OUT_ARRAYS.parent), 'arrays')
-    shutil.make_archive('/kaggle/working/gradcam_figures', 'zip',
-                        str(OUT_FIGS.parent), 'figures')
-    print("Done.  Output: gradcam_arrays.zip  |  gradcam_figures.zip")
+    print("Zipping arrays and figures …")
+    shutil.make_archive(
+        str(OUT_ARRAYS.parent.parent / "gradcam_arrays"), "zip",
+        str(OUT_ARRAYS.parent), "arrays"
+    )
+    shutil.make_archive(
+        str(OUT_ARRAYS.parent.parent / "gradcam_figures"), "zip",
+        str(OUT_FIGS.parent), "figures"
+    )
+    print("Done.  gradcam_arrays.zip  |  gradcam_figures.zip")
 
 
 if __name__ == "__main__":
