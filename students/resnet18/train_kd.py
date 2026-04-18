@@ -9,18 +9,18 @@ All hyperparameters are read from config.yaml at the project root.
 """
 import csv
 import random
+import tarfile
+import urllib.request
 from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.datasets as tv_datasets
 import torchvision.models as models
 import torchvision.transforms as transforms
 import yaml
-from datasets import load_dataset
-from PIL import Image
-from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
@@ -36,12 +36,18 @@ T           = cfg["training"]["kd_temperature"]
 ALPHA       = cfg["training"]["kd_alpha"]
 IMG_SIZE    = cfg["dataset"]["image_size"]
 BATCH_SIZE  = cfg["dataset"]["batch_size"]
-DATASET     = cfg["dataset"]["name"]
 
 NUM_EPOCHS  = 30
 LR          = 0.01
 
-TEACHER_CKPT = _ROOT / "teacher" / "checkpoints" / "teacher_finetuned.pth"
+_DATA_DIR       = _ROOT / "data"
+_IMAGENETTE_DIR = _DATA_DIR / "imagenette2-320"
+_IMAGENETTE_URL = "https://s3.amazonaws.com/fast-ai-imageclas/imagenette2-320.tgz"
+
+# Teacher checkpoint: prefer Kaggle dataset input, fall back to local copy
+_TEACHER_KAGGLE = Path("/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/teacher_finetuned.pth")
+_TEACHER_LOCAL  = _ROOT / "teacher" / "checkpoints" / "teacher_finetuned.pth"
+TEACHER_CKPT    = _TEACHER_KAGGLE if _TEACHER_KAGGLE.exists() else _TEACHER_LOCAL
 
 # ── Reproducibility ────────────────────────────────────────────────────────────
 random.seed(SEED)
@@ -69,23 +75,24 @@ val_transform = transforms.Compose([
 ])
 
 
-# ── HuggingFace ImageNette wrapper ─────────────────────────────────────────────
-class ImagenetteDataset(Dataset):
-    def __init__(self, hf_split, transform):
-        self.data = hf_split
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        item = self.data[idx]
-        image = item["image"]
-        if not isinstance(image, Image.Image):
-            image = Image.fromarray(image)
-        if image.mode != "RGB":
-            image = image.convert("RGB")
-        return self.transform(image), item["label"]
+# ── Dataset download ───────────────────────────────────────────────────────────
+def download_imagenette():
+    if _IMAGENETTE_DIR.exists():
+        return
+    _DATA_DIR.mkdir(exist_ok=True)
+    tgz = _DATA_DIR / "imagenette2-320.tgz"
+    print("Downloading ImageNette (~330 MB) …")
+    urllib.request.urlretrieve(
+        _IMAGENETTE_URL, tgz,
+        reporthook=lambda n, bs, ts: print(
+            f"\r  {min(n * bs / ts * 100, 100):.1f}%", end="", flush=True
+        ),
+    )
+    print("\nExtracting …")
+    with tarfile.open(tgz) as t:
+        t.extractall(_DATA_DIR)
+    tgz.unlink()
+    print("Done.\n")
 
 
 # ── Models ─────────────────────────────────────────────────────────────────────
@@ -159,18 +166,23 @@ def evaluate(model, loader, device):
 # ── Main ───────────────────────────────────────────────────────────────────────
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Device: {device}")
+    print(f"Device : {device}")
+    print(f"Teacher: {TEACHER_CKPT}\n")
 
-    print("Loading dataset …")
-    raw = load_dataset(DATASET, "full_size")
-    train_ds = ImagenetteDataset(raw["train"],      train_transform)
-    val_ds   = ImagenetteDataset(raw["validation"], val_transform)
+    download_imagenette()
 
     g = torch.Generator().manual_seed(SEED)
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,
-                              num_workers=2, pin_memory=True, generator=g)
-    val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False,
-                              num_workers=2, pin_memory=True)
+    train_ds   = tv_datasets.ImageFolder(_IMAGENETTE_DIR / "train", transform=train_transform)
+    val_ds     = tv_datasets.ImageFolder(_IMAGENETTE_DIR / "val",   transform=val_transform)
+    train_loader = torch.utils.data.DataLoader(
+        train_ds, batch_size=BATCH_SIZE, shuffle=True,
+        num_workers=2, pin_memory=True, generator=g
+    )
+    val_loader = torch.utils.data.DataLoader(
+        val_ds, batch_size=BATCH_SIZE, shuffle=False,
+        num_workers=2, pin_memory=True
+    )
+    print(f"Train: {len(train_ds):,}  |  Val: {len(val_ds):,}")
 
     teacher = load_teacher(NUM_CLASSES).to(device).eval()
     student = load_student(NUM_CLASSES).to(device)
