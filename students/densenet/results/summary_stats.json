@@ -1,0 +1,117 @@
+{
+  "js_divergence": {
+    "kd_student": {
+      "mean": 0.131631,
+      "std": 0.042953
+    },
+    "baseline": {
+      "mean": 0.138789,
+      "std": 0.047863
+    }
+  },
+  "spearman_r": {
+    "kd_student": {
+      "mean": 0.83209,
+      "std": 0.157818
+    },
+    "baseline": {
+      "mean": 0.807254,
+      "std": 0.160107
+    }
+  },
+  "ssim": {
+    "kd_student": {
+      "mean": 0.953873,
+      "std": 0.041844
+    },
+    "baseline": {
+      "mean": 0.950511,
+      "std": 0.044556
+    }
+  },
+  "js_by_outcome": {
+    "kd_student": {
+      "both_correct": {
+        "mean": 0.129211,
+        "std": 0.033193,
+        "n": 3877
+      },
+      "student_wrong_teacher_correct": {
+        "mean": 0.375239,
+        "std": 0.11885,
+        "n": 23
+      },
+      "both_wrong": {
+        "mean": 0.21311,
+        "std": 0.121287,
+        "n": 18
+      }
+    },
+    "baseline": {
+      "both_correct": {
+        "mean": 0.135801,
+        "std": 0.038944,
+        "n": 3862
+      },
+      "student_wrong_teacher_correct": {
+        "mean": 0.332079,
+        "std": 0.093109,
+        "n": 38
+      },
+      "both_wrong": {
+        "mean": 0.238749,
+        "std": 0.14451,
+        "n": 15
+      }
+    }
+  },
+  "ssim_by_outcome": {
+    "kd_student": {
+      "both_correct": {
+        "mean": 0.956571,
+        "std": 0.023655,
+        "n": 3877
+      },
+      "student_wrong_teacher_correct": {
+        "mean": 0.692307,
+        "std": 0.183162,
+        "n": 23
+      },
+      "both_wrong": {
+        "mean": 0.882363,
+        "std": 0.167091,
+        "n": 18
+      }
+    },
+    "baseline": {
+      "both_correct": {
+        "mean": 0.95391,
+        "std": 0.027239,
+        "n": 3862
+      },
+      "student_wrong_teacher_correct": {
+        "mean": 0.739632,
+        "std": 0.135324,
+        "n": 38
+      },
+      "both_wrong": {
+        "mean": 0.858636,
+        "std": 0.193141,
+        "n": 15
+      }
+    }
+  },
+  "top1_accuracy": {
+    "teacher": 0.9936,
+    "kd_student": 0.9896,
+    "baseline": 0.9865
+  },
+  "mann_whitney_u_statistic": 7044418.0,
+  "mann_whitney_p_value": 2.7259030622287988e-11,
+  "floor_js_mean": 0.09254423525526305,
+  "floor_js_std": 0.047805849969337524,
+  "floor_spearman_mean": 0.9028448957383891,
+  "floor_spearman_std": 0.12495253800360541,
+  "floor_ssim_mean": 0.975573251918646,
+  "floor_ssim_std": 0.04280336198068857
+}

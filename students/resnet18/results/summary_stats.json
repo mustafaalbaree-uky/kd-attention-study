@@ -107,5 +107,11 @@
     "baseline": 0.9822
   },
   "mann_whitney_u_statistic": 6162446.0,
-  "mann_whitney_p_value": 1.9703950142392115e-53
+  "mann_whitney_p_value": 1.9703950142392115e-53,
+  "floor_js_mean": 0.0877078724838017,
+  "floor_js_std": 0.055425162647853486,
+  "floor_spearman_mean": 0.916843906691806,
+  "floor_spearman_std": 0.13059785260161413,
+  "floor_ssim_mean": 0.9773753971177608,
+  "floor_ssim_std": 0.053675699562572454
 }

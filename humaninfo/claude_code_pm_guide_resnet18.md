@@ -167,13 +167,16 @@ Every prompt sent to Claude Code follows this exact template. Do not deviate fro
            with hypothesis. Mann-Whitney U=6,162,446, p=1.97e-53 unchanged.
            Both shared scripts now accept --student [resnet18|mobilenet|densenet].
 
-[ ] Step 6c — Floor computation (seed-43 baseline training, Grad-CAM, scoring)
-    Files to produce:
+[x] Step 6c — Floor computation (seed-43 baseline training, Grad-CAM, scoring)
+    Files produced:
       - students/resnet18/checkpoints/resnet18_baseline_seed43.pth
       - students/resnet18/results/resnet18_baseline_seed43_training_log.csv
       - students/resnet18/results/gradcam_full/arrays_seed43/ (3,925 .npz files, keys: baseline_seed42, baseline_seed43)
       - students/resnet18/results/floor_scores.csv (3,925 rows: filename, js_floor, spearman_floor, ssim_floor)
-      - students/resnet18/results/summary_stats.json (updated — floor_js_mean, floor_spearman_mean, floor_ssim_mean added)
+      - students/resnet18/results/summary_stats.json (updated — floor keys added)
+    Notes: floor_js_mean=0.0877, floor_spearman_mean=0.9168, floor_ssim_mean=0.9774.
+           Training ran on Kaggle GPU; floor_scores.csv and summary_stats.json patched locally.
+           arrays_seed43/ not downloaded (floor_scores.csv already computed from them).
 
 [x] Step 7 — Summary stats, figures, and statistical significance test
     Files produced:

@@ -146,13 +146,16 @@ Every prompt sent to Claude Code follows this exact template. Do not deviate fro
       - students/densenet/results/figures/figure3_spearman_distribution.png
       - students/densenet/results/figures/figure4_ssim_by_outcome.png
 
-[ ] Step 6 — Floor computation (seed-43 baseline training, Grad-CAM, scoring)
-    Files to produce:
+[x] Step 6 — Floor computation (seed-43 baseline training, Grad-CAM, scoring)
+    Files produced:
       - students/densenet/checkpoints/densenet_baseline_seed43.pth
       - students/densenet/results/densenet_baseline_seed43_training_log.csv
       - students/densenet/results/gradcam_full/arrays_seed43/ (3,925 .npz files, keys: baseline_seed42, baseline_seed43)
       - students/densenet/results/floor_scores.csv
       - students/densenet/results/summary_stats.json (updated with floor keys)
+    Notes: floor_js_mean=0.0925, floor_spearman_mean=0.9028, floor_ssim_mean=0.9756.
+           Training ran on Kaggle GPU; floor_scores.csv and summary_stats.json patched locally.
+           arrays_seed43/ not downloaded (floor_scores.csv already computed from them).
 
 ---
 
