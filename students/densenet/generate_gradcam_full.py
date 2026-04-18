@@ -1,7 +1,8 @@
 """
 Grad-CAM generation for all ~3925 ImageNette test images — DenseNet-121 student.
-Kaggle version: checkpoints from /kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints-densenet/.
-Outputs figures and arrays to /kaggle/working/results/gradcam_full/.
+Student checkpoints loaded from students/densenet/checkpoints/ (written by training scripts).
+Teacher checkpoint: prefers Kaggle dataset input path, falls back to local copy.
+Outputs figures and arrays to students/densenet/results/gradcam_full/.
 
 Grad-CAM target layer: model.features.denseblock4 (last dense block).
 """
@@ -21,20 +22,27 @@ from PIL import Image as PILImage
 from pytorch_grad_cam import GradCAM
 from tqdm import tqdm
 
+_HERE = Path(__file__).parent          # students/densenet/
+_ROOT = _HERE.parent.parent            # project root
+
 SEED        = 42
 NUM_CLASSES = 10
 IMG_SIZE    = 224
 
-CKPT_TEACHER  = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/teacher_finetuned.pth"
-CKPT_KD       = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints-densenet/densenet_kd.pth"
-CKPT_BASELINE = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints-densenet/densenet_baseline.pth"
+# Teacher checkpoint: prefer Kaggle dataset input, fall back to local copy
+_TEACHER_KAGGLE = Path("/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/teacher_finetuned.pth")
+_TEACHER_LOCAL  = _ROOT / "teacher" / "checkpoints" / "teacher_finetuned.pth"
+CKPT_TEACHER    = _TEACHER_KAGGLE if _TEACHER_KAGGLE.exists() else _TEACHER_LOCAL
 
-DATA_DIR       = Path("/kaggle/working/data")
+CKPT_KD       = _HERE / "checkpoints" / "densenet_kd.pth"
+CKPT_BASELINE = _HERE / "checkpoints" / "densenet_baseline.pth"
+
+DATA_DIR       = _ROOT / "data"
 IMAGENETTE_DIR = DATA_DIR / "imagenette2-320"
 IMAGENETTE_URL = "https://s3.amazonaws.com/fast-ai-imageclas/imagenette2-320.tgz"
 
-OUT_FIGS   = Path("/kaggle/working/results/gradcam_full/figures")
-OUT_ARRAYS = Path("/kaggle/working/results/gradcam_full/arrays")
+OUT_FIGS   = _HERE / "results" / "gradcam_full" / "figures"
+OUT_ARRAYS = _HERE / "results" / "gradcam_full" / "arrays"
 
 IMAGENETTE_LABELS = {
     "n01440764": "tench",           "n02102040": "english_springer",
