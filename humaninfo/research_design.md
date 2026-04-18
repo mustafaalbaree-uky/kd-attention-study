@@ -65,11 +65,14 @@ These are what we measure as outcomes.
 ### 4.3 Controlled variables
 These are held constant so they do not confound our results.
 
-- Same dataset for all models (CIFAR-10 or Tiny ImageNet)
-- Same test images used for all comparisons
-- Same Grad-CAM implementation and layer selection applied to all models
-- Same image preprocessing pipeline
-- Fixed random seed for reproducibility
+| Variable | How controlled |
+|---|---|
+| Dataset | Same ImageNette split for all models |
+| Test images | Same 3,925 validation images for all comparisons |
+| Grad-CAM implementation | Same library, same target layer selection applied consistently |
+| Image preprocessing | Same pipeline for all models |
+| Random seed | Fixed at 42 for all primary models; seed 43 used exclusively for floor baseline |
+| Floor baseline seed | Same seed (43) used across all three student architectures |
 
 ---
 
@@ -101,11 +104,12 @@ Rationale for dataset choice: ResNet's final convolutional layer on a 224×224 i
 ### Step 5 — Quantitative analysis
 - Normalize each Grad-CAM map by its sum so it functions as a spatial probability distribution
 - For each image, compute three metrics between the teacher map and each student map:
-  - **Jensen-Shannon divergence** (symmetric, bounded 0–1): treats the normalized map as a probability distribution and measures how much the two distributions differ. Does not preserve spatial structure — two maps with identical marginal distributions but different hot-spot locations will appear similar.
-  - **Spearman rank correlation** (bounded −1 to 1): measures the monotonic spatial agreement between two flattened maps. Non-parametric and robust to outlier activations.
-  - **SSIM** (Structural Similarity Index, bounded −1 to 1): preserves local spatial structure by comparing luminance, contrast, and structure in local windows. The primary spatially-aware complement to JS divergence.
+  - **Jensen-Shannon divergence** (symmetric, bounded 0–1): treats the normalized map as a probability distribution and measures distributional difference. Does not preserve spatial structure.
+  - **Spearman rank correlation** (bounded −1 to 1): measures monotonic spatial agreement between two flattened maps. Non-parametric and robust to outlier activations.
+  - **SSIM** (Structural Similarity Index, bounded −1 to 1): preserves local spatial structure by comparing luminance, contrast, and structure in local windows. Primary spatially-aware complement to JS divergence.
 - Separate image pairs into outcome groups: both correct / student wrong + teacher correct / both wrong
 - Compare mean JS divergence, mean Spearman r, and mean SSIM across groups for each student
+- **Floor reference:** For each architecture, a second baseline model trained with seed 43 (all else identical to the seed-42 baseline) is used to establish a reference divergence floor. JS, Spearman, and SSIM are computed between the two baseline models on the same images. This anchors the scale: it represents the minimum expected divergence between two models with no reason to attend differently beyond random initialization. The KD and baseline student divergences from the teacher are interpreted relative to this floor.
 
 ### Step 6 — Qualitative case study analysis
 - Manually select 10 high-agreement pairs, 10 high-divergence pairs, 5 failure cases
@@ -142,6 +146,7 @@ Rationale for dataset choice: ResNet's final convolutional layer on a 224×224 i
 | Saliency divergence on failure cases | Mean JS, Spearman r, SSIM on student-error images |
 | Effect size | Is the difference between correct/failure groups consistent across all three metrics? |
 | Statistical significance | Mann-Whitney U test between KD and baseline JS distributions |
+| Reference floor (scale anchor) | Mean JS, Spearman r, SSIM between seed-42 and seed-43 baselines — establishes minimum expected divergence |
 | Qualitative coherence | Do case studies tell a consistent story with the quantitative findings? |
 
 ---
@@ -150,6 +155,7 @@ Rationale for dataset choice: ResNet's final convolutional layer on a 224×224 i
 
 - **Grad-CAM is imperfect and unstable.** It is a coarse, first-order approximation — its resolution is bounded by the spatial size of the chosen feature map (7×7 for ResNet on 224×224 inputs), and it can be sensitive to gradient noise. More importantly, observed differences in saliency maps between teacher and student may reflect architectural differences or gradient instability rather than any meaningful divergence in how the two models process images. We interpret map similarity as a measurable proxy for saliency alignment, not as evidence of shared or divergent internal reasoning.
 - **ViT excluded by design.** A natural extension of this study would be to use a ViT teacher and examine whether the same alignment pattern holds when attention and saliency are more closely coupled. We excluded ViT for a principled reason: Grad-CAM does not transfer cleanly to transformer architectures. Applying it to a ViT would require a different method entirely (e.g., attention rollout or Chefer et al.'s transformer attribution), and the resulting maps would not be directly comparable to CNN Grad-CAM maps. We note this as a meaningful direction for future work.
+- **Floor baseline is architecture-specific.** The seed-43 baseline used for floor computation shares the same architecture as the seed-42 baseline. This means the floor value differs across architectures (ResNet-18, MobileNet, DenseNet) and cannot be used to compare absolute alignment levels across experiments — only to contextualize results within each architecture's own scale.
 - **ImageNette is not full ImageNet.** Results on a 10-class subset may not generalize to the full 1000-class setting. The 10 ImageNette classes are also visually distinct, which may make the teacher's task easier than a more fine-grained benchmark would.
 - **Generalizability.** Results on one teacher–student pair and one dataset may not generalize to other architectures or domains.
 - **Correlation vs. causation.** We can show that attention divergence correlates with failure; we cannot prove it causes failure.
