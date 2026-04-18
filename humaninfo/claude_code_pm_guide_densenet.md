@@ -124,17 +124,13 @@ Every prompt sent to Claude Code follows this exact template. Do not deviate fro
     Files produced:
       - students/densenet/results/accuracy.csv
 
-[ ] Step 3 — Grad-CAM generation (full ImageNette validation set, Kaggle)
-    Files to produce:
+[x] Step 3 — Grad-CAM generation (full ImageNette validation set, Kaggle)
+    Files produced:
       - students/densenet/results/gradcam_full/arrays/ (3,925 .npz files)
       - students/densenet/results/gradcam_full/figures/ (10 sample PNGs)
-    Note: generate_gradcam_full.py was fixed to use local checkpoint paths
-          (students/densenet/checkpoints/) with Kaggle dataset as fallback.
-          Upload densenet_kd.pth + densenet_baseline.pth as dataset
-          kd-attention-checkpoints-densenet and add it as notebook input.
 
-[ ] Step 4 — Divergence scoring (JS divergence + Spearman + SSIM, full validation set)
-    Files to produce:
+[x] Step 4 — Divergence scoring (JS divergence + Spearman + SSIM, full validation set)
+    Files produced:
       - students/densenet/results/divergence_scores.csv
         Columns: filename, true_label, teacher_pred, kd_pred, baseline_pred,
                  teacher_correct, kd_correct, baseline_correct,
@@ -142,8 +138,8 @@ Every prompt sent to Claude Code follows this exact template. Do not deviate fro
                  spearman_teacher_kd, spearman_teacher_baseline,
                  ssim_teacher_kd, ssim_teacher_baseline
 
-[ ] Step 5 — Summary stats, figures, and statistical significance test
-    Files to produce:
+[x] Step 5 — Summary stats, figures, and statistical significance test
+    Files produced:
       - students/densenet/results/summary_stats.json
       - students/densenet/results/figures/figure1_js_divergence_bar.png
       - students/densenet/results/figures/figure2_js_by_outcome.png
@@ -159,14 +155,14 @@ Every prompt sent to Claude Code follows this exact template. Do not deviate fro
 | Teacher val_acc | 0.9936 |
 | Baseline val_acc | 0.9865 |
 | KD student val_acc | 0.9896 |
-| Mean JS divergence — KD vs teacher | |
-| Mean JS divergence — Baseline vs teacher | |
-| Mean Spearman r — KD vs teacher | |
-| Mean Spearman r — Baseline vs teacher | |
-| Mean SSIM — KD vs teacher | |
-| Mean SSIM — Baseline vs teacher | |
-| Mann-Whitney U statistic | |
-| Mann-Whitney p-value | |
+| Mean JS divergence — KD vs teacher | 0.1316 (std 0.0430) |
+| Mean JS divergence — Baseline vs teacher | 0.1388 (std 0.0479) |
+| Mean Spearman r — KD vs teacher | 0.8321 (std 0.1578) |
+| Mean Spearman r — Baseline vs teacher | 0.8073 (std 0.1601) |
+| Mean SSIM — KD vs teacher | 0.9539 (std 0.0418) |
+| Mean SSIM — Baseline vs teacher | 0.9505 (std 0.0446) |
+| Mann-Whitney U statistic | 7,044,418.0 |
+| Mann-Whitney p-value | 2.73e-11 |
 
 ---
 

@@ -1,0 +1,4 @@
+model_name,checkpoint,test_accuracy
+teacher_resnet50,/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/teacher_finetuned.pth,0.9936
+student_kd_densenet,/kaggle/working/kd-attention-study/students/densenet/checkpoints/densenet_kd.pth,0.9896
+student_baseline_densenet,/kaggle/working/kd-attention-study/students/densenet/checkpoints/densenet_baseline.pth,0.9865
