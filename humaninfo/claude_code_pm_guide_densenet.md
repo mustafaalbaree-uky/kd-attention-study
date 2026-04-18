@@ -108,39 +108,39 @@ Every prompt sent to Claude Code follows this exact template. Do not deviate fro
 
 ## State tracker — DenseNet-121 student
 
-[ ] Step 1a — Baseline training (DenseNet-121, hard labels only)
-    Files to produce:
-      - students/densenet/train_baseline.py (already written — run it on Kaggle)
+[x] Step 1a — Baseline training (DenseNet-121, hard labels only)
+    Files produced:
+      - students/densenet/train_baseline.py
       - students/densenet/checkpoints/densenet_baseline.pth
       - students/densenet/results/densenet_baseline_training_log.csv
 
-[ ] Step 1b — KD training (DenseNet-121 student ← frozen ResNet-50 teacher)
-    Files to produce:
-      - students/densenet/train_kd.py (already written — run it on Kaggle)
+[x] Step 1b — KD training (DenseNet-121 student ← frozen ResNet-50 teacher)
+    Files produced:
+      - students/densenet/train_kd.py
       - students/densenet/checkpoints/densenet_kd.pth
       - students/densenet/results/densenet_kd_training_log.csv
 
-[ ] Step 2 — Evaluation (accuracy, all three models on ImageNette val set)
-    Files to produce:
-      - students/densenet/results/accuracy.csv (teacher, kd student, baseline)
+[x] Step 2 — Evaluation (accuracy, all three models on ImageNette val set)
+    Files produced:
+      - students/densenet/results/accuracy.csv
 
 [ ] Step 3 — Grad-CAM generation (full ImageNette validation set, Kaggle)
     Files to produce:
-      - students/densenet/generate_gradcam_full.py (already written — run it on Kaggle)
       - students/densenet/results/gradcam_full/arrays/ (3,925 .npz files)
       - students/densenet/results/gradcam_full/figures/ (10 sample PNGs)
+    Note: generate_gradcam_full.py was fixed to use local checkpoint paths
+          (students/densenet/checkpoints/) with Kaggle dataset as fallback.
+          Upload densenet_kd.pth + densenet_baseline.pth as dataset
+          kd-attention-checkpoints-densenet and add it as notebook input.
 
 [ ] Step 4 — Divergence scoring (JS divergence + Spearman + SSIM, full validation set)
     Files to produce:
-      - shared/score_divergence.py (confirm paths point to this student's gradcam_full/arrays/)
       - students/densenet/results/divergence_scores.csv
         Columns: filename, true_label, teacher_pred, kd_pred, baseline_pred,
                  teacher_correct, kd_correct, baseline_correct,
                  js_teacher_kd, js_teacher_baseline,
                  spearman_teacher_kd, spearman_teacher_baseline,
                  ssim_teacher_kd, ssim_teacher_baseline
-    Note: The ResNet-18 version of score_divergence.py now includes SSIM.
-          Confirm this version is used — do not run an older copy.
 
 [ ] Step 5 — Summary stats, figures, and statistical significance test
     Files to produce:
@@ -148,16 +148,7 @@ Every prompt sent to Claude Code follows this exact template. Do not deviate fro
       - students/densenet/results/figures/figure1_js_divergence_bar.png
       - students/densenet/results/figures/figure2_js_by_outcome.png
       - students/densenet/results/figures/figure3_spearman_distribution.png
-
----
-
-## Kaggle input paths (for generate_gradcam_full.py)
-
-```
-CKPT_TEACHER  = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/teacher_finetuned.pth"
-CKPT_KD       = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints-densenet/densenet_kd.pth"
-CKPT_BASELINE = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints-densenet/densenet_baseline.pth"
-```
+      - students/densenet/results/figures/figure4_ssim_by_outcome.png
 
 ---
 
@@ -165,11 +156,15 @@ CKPT_BASELINE = "/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints-
 
 | Metric | Value |
 |---|---|
-| Teacher val_acc | 0.9936 (from ResNet-18 experiment) |
-| Baseline val_acc | |
-| KD student val_acc | |
+| Teacher val_acc | 0.9936 |
+| Baseline val_acc | 0.9865 |
+| KD student val_acc | 0.9896 |
 | Mean JS divergence — KD vs teacher | |
 | Mean JS divergence — Baseline vs teacher | |
+| Mean Spearman r — KD vs teacher | |
+| Mean Spearman r — Baseline vs teacher | |
+| Mean SSIM — KD vs teacher | |
+| Mean SSIM — Baseline vs teacher | |
 | Mann-Whitney U statistic | |
 | Mann-Whitney p-value | |
 
