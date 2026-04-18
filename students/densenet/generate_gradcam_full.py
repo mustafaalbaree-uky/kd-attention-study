@@ -34,8 +34,9 @@ _TEACHER_KAGGLE = Path("/kaggle/input/datasets/mustafaalbaree/kd-attention-check
 _TEACHER_LOCAL  = _ROOT / "teacher" / "checkpoints" / "teacher_finetuned.pth"
 CKPT_TEACHER    = _TEACHER_KAGGLE if _TEACHER_KAGGLE.exists() else _TEACHER_LOCAL
 
-CKPT_KD       = _HERE / "checkpoints" / "densenet_kd.pth"
-CKPT_BASELINE = _HERE / "checkpoints" / "densenet_baseline.pth"
+_STUDENT_KAGGLE = Path("/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints-densenet")
+CKPT_KD       = _STUDENT_KAGGLE / "densenet_kd.pth"       if _STUDENT_KAGGLE.exists() else _HERE / "checkpoints" / "densenet_kd.pth"
+CKPT_BASELINE = _STUDENT_KAGGLE / "densenet_baseline.pth" if _STUDENT_KAGGLE.exists() else _HERE / "checkpoints" / "densenet_baseline.pth"
 
 DATA_DIR       = _ROOT / "data"
 IMAGENETTE_DIR = DATA_DIR / "imagenette2-320"
