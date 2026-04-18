@@ -41,7 +41,10 @@ DATASET     = cfg["dataset"]["name"]
 NUM_EPOCHS  = 30
 LR          = 0.01
 
-TEACHER_CKPT = _ROOT / "teacher" / "checkpoints" / "teacher_finetuned.pth"
+# Teacher checkpoint: prefer Kaggle dataset input, fall back to local copy
+_TEACHER_KAGGLE = Path("/kaggle/input/datasets/mustafaalbaree/kd-attention-checkpoints/teacher_finetuned.pth")
+_TEACHER_LOCAL  = _ROOT / "teacher" / "checkpoints" / "teacher_finetuned.pth"
+TEACHER_CKPT    = _TEACHER_KAGGLE if _TEACHER_KAGGLE.exists() else _TEACHER_LOCAL
 
 # ── Reproducibility ────────────────────────────────────────────────────────────
 random.seed(SEED)
