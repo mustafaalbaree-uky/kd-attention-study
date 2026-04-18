@@ -19,6 +19,16 @@
       "std": 0.171868
     }
   },
+  "ssim": {
+    "kd_student": {
+      "mean": 0.958955,
+      "std": 0.04448
+    },
+    "baseline": {
+      "mean": 0.951152,
+      "std": 0.052241
+    }
+  },
   "js_by_outcome": {
     "kd_student": {
       "both_correct": {
@@ -51,6 +61,42 @@
       "both_wrong": {
         "mean": 0.251007,
         "std": 0.136956,
+        "n": 18
+      }
+    }
+  },
+  "ssim_by_outcome": {
+    "kd_student": {
+      "both_correct": {
+        "mean": 0.962687,
+        "std": 0.024244,
+        "n": 3851
+      },
+      "student_wrong_teacher_correct": {
+        "mean": 0.723451,
+        "std": 0.175129,
+        "n": 49
+      },
+      "both_wrong": {
+        "mean": 0.882612,
+        "std": 0.131704,
+        "n": 22
+      }
+    },
+    "baseline": {
+      "both_correct": {
+        "mean": 0.955895,
+        "std": 0.029105,
+        "n": 3848
+      },
+      "student_wrong_teacher_correct": {
+        "mean": 0.689031,
+        "std": 0.177788,
+        "n": 52
+      },
+      "both_wrong": {
+        "mean": 0.83715,
+        "std": 0.182561,
         "n": 18
       }
     }

@@ -155,13 +155,17 @@ Every prompt sent to Claude Code follows this exact template. Do not deviate fro
     ⚠️ NEEDS UPDATE: SSIM columns (ssim_teacher_kd, ssim_teacher_baseline) not yet added.
            divergence_scores.csv must be regenerated after Prompt 9.
 
-[ ] Step 6b — Add SSIM to divergence scoring and regenerate summary stats
-    Files to produce:
-      - score_divergence.py (updated — add ssim_teacher_kd, ssim_teacher_baseline columns)
-      - results/divergence_scores.csv (3,925 rows — now with SSIM columns)
-      - summarize.py (updated — include SSIM means in summary_stats.json)
-      - results/summary_stats.json (regenerated)
-      - results/figures/ (figures 1–3 regenerated; figure4_ssim_by_outcome.png added)
+[x] Step 6b — Add SSIM to divergence scoring and regenerate summary stats
+    Files produced:
+      - shared/score_divergence.py (updated — ssim_teacher_kd, ssim_teacher_baseline columns added; now accepts --student arg)
+      - students/resnet18/results/divergence_scores.csv (3,925 rows — with SSIM columns, values in [0.157, 0.997])
+      - shared/summarize.py (updated — SSIM means, ssim_by_outcome breakdown, figure4; now accepts --student arg)
+      - students/resnet18/results/summary_stats.json (regenerated — ssim.kd_student.mean=0.958955, ssim.baseline.mean=0.951152)
+      - students/resnet18/results/figures/ (figures 1–3 regenerated; figure4_ssim_by_outcome.png added)
+    Notes: mean ssim_teacher_kd=0.958955, mean ssim_teacher_baseline=0.951122 — KD student
+           shows consistently higher SSIM (more spatially aligned) with teacher, consistent
+           with hypothesis. Mann-Whitney U=6,162,446, p=1.97e-53 unchanged.
+           Both shared scripts now accept --student [resnet18|mobilenet|densenet].
 
 [x] Step 7 — Summary stats, figures, and statistical significance test
     Files produced:

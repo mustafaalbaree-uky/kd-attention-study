@@ -1,25 +1,35 @@
 """
-Compute Jensen-Shannon divergence and Spearman rank correlation between
-teacher and each student Grad-CAM map for all 200 sampled images.
-Outputs results/divergence_scores.csv with one row per image.
+Compute Jensen-Shannon divergence, Spearman rank correlation, and SSIM between
+teacher and each student Grad-CAM map for the full ImageNette validation set.
+Outputs divergence_scores.csv with one row per image.
+
+Usage (from project root):
+    python shared/score_divergence.py                 # defaults to students/resnet18/
+    python shared/score_divergence.py --student mobilenet
+    python shared/score_divergence.py --student densenet
 """
+import argparse
 import csv
 import math
 from pathlib import Path
 
 import numpy as np
-import yaml
 from scipy.spatial.distance import jensenshannon
 from scipy.stats import spearmanr
+from skimage.metrics import structural_similarity as ssim_fn
 
-# ── Config ──────────────────────────────────────────────────────────────────────
-with open("config.yaml") as f:
-    cfg = yaml.safe_load(f)
+# ── Paths ──────────────────────────────────────────────────────────────────────
+_HERE = Path(__file__).parent       # shared/
+_ROOT = _HERE.parent                # project root
 
-ARRAYS_DIR = Path(
-    cfg.get("paths", {}).get("gradcam_arrays", "results/gradcam_full/arrays")
-)
-OUT_CSV = Path("results/divergence_scores.csv")
+parser = argparse.ArgumentParser()
+parser.add_argument("--student", default="resnet18",
+                    help="Student subdirectory name under students/ (default: resnet18)")
+args = parser.parse_args()
+
+STUDENT_DIR = _ROOT / "students" / args.student
+ARRAYS_DIR  = STUDENT_DIR / "results" / "gradcam_full" / "arrays"
+OUT_CSV     = STUDENT_DIR / "results" / "divergence_scores.csv"
 
 FIELDNAMES = [
     "filename",
@@ -28,12 +38,11 @@ FIELDNAMES = [
     "teacher_correct", "kd_correct", "baseline_correct",
     "js_teacher_kd", "js_teacher_baseline",
     "spearman_teacher_kd", "spearman_teacher_baseline",
+    "ssim_teacher_kd", "ssim_teacher_baseline",
 ]
 
 
 def js(a: np.ndarray, b: np.ndarray) -> float:
-    """JS distance between two non-negative arrays (need not sum to 1 here,
-    but after Step 5 normalization they already do)."""
     a = a.astype(np.float64).ravel()
     b = b.astype(np.float64).ravel()
     if a.sum() == 0 or b.sum() == 0:
@@ -43,6 +52,13 @@ def js(a: np.ndarray, b: np.ndarray) -> float:
 
 def spear(a: np.ndarray, b: np.ndarray) -> float:
     return float(spearmanr(a.ravel(), b.ravel()).statistic)
+
+
+def ssim(a: np.ndarray, b: np.ndarray) -> float:
+    # Maps are stored flat or 2-D; ensure (7,7) before SSIM
+    a2 = a.astype(np.float64).reshape(7, 7)
+    b2 = b.astype(np.float64).reshape(7, 7)
+    return float(ssim_fn(a2, b2, data_range=1.0, win_size=7))
 
 
 def process(npz_path: Path) -> dict:
@@ -58,25 +74,34 @@ def process(npz_path: Path) -> dict:
     bl = d["baseline"]
 
     return {
-        "filename":            npz_path.name,
-        "true_label":          true_label,
-        "teacher_pred":        teacher_pred,
-        "kd_pred":             kd_pred,
-        "baseline_pred":       baseline_pred,
-        "teacher_correct":     int(teacher_pred  == true_label),
-        "kd_correct":          int(kd_pred       == true_label),
-        "baseline_correct":    int(baseline_pred == true_label),
-        "js_teacher_kd":       js(t, kd),
-        "js_teacher_baseline": js(t, bl),
+        "filename":                  npz_path.name,
+        "true_label":                true_label,
+        "teacher_pred":              teacher_pred,
+        "kd_pred":                   kd_pred,
+        "baseline_pred":             baseline_pred,
+        "teacher_correct":           int(teacher_pred  == true_label),
+        "kd_correct":                int(kd_pred       == true_label),
+        "baseline_correct":          int(baseline_pred == true_label),
+        "js_teacher_kd":             js(t, kd),
+        "js_teacher_baseline":       js(t, bl),
         "spearman_teacher_kd":       spear(t, kd),
         "spearman_teacher_baseline": spear(t, bl),
+        "ssim_teacher_kd":           ssim(t, kd),
+        "ssim_teacher_baseline":     ssim(t, bl),
     }
 
 
 def main() -> None:
+    if not ARRAYS_DIR.exists():
+        raise FileNotFoundError(f"Arrays directory not found: {ARRAYS_DIR}")
+
     npz_files = sorted(ARRAYS_DIR.glob("*.npz"))
     if not npz_files:
         raise FileNotFoundError(f"No .npz files found in {ARRAYS_DIR}")
+
+    print(f"Student : {args.student}")
+    print(f"Arrays  : {ARRAYS_DIR}  ({len(npz_files)} files)")
+    print(f"Output  : {OUT_CSV}\n")
 
     OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
 
@@ -95,8 +120,13 @@ def main() -> None:
 
     js_kd  = [r["js_teacher_kd"]       for r in rows if not math.isnan(r["js_teacher_kd"])]
     js_bl  = [r["js_teacher_baseline"] for r in rows if not math.isnan(r["js_teacher_baseline"])]
-    print(f"  mean js_teacher_kd       = {sum(js_kd)  / len(js_kd):.6f}")
-    print(f"  mean js_teacher_baseline = {sum(js_bl) / len(js_bl):.6f}")
+    ss_kd  = [r["ssim_teacher_kd"]     for r in rows]
+    ss_bl  = [r["ssim_teacher_baseline"] for r in rows]
+
+    print(f"  mean js_teacher_kd         = {sum(js_kd) / len(js_kd):.6f}")
+    print(f"  mean js_teacher_baseline   = {sum(js_bl) / len(js_bl):.6f}")
+    print(f"  mean ssim_teacher_kd       = {sum(ss_kd) / len(ss_kd):.6f}")
+    print(f"  mean ssim_teacher_baseline = {sum(ss_bl) / len(ss_bl):.6f}")
 
 
 if __name__ == "__main__":
