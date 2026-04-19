@@ -124,6 +124,8 @@ kd-gradcam/
 ├── data/
 ├── audit.py
 ├── run_floor_overnight.py
+├── setup_seed43_checkpoints.py
+├── zip_floor_results.py
 ├── config.yaml
 ├── requirements.txt
 └── setup.py
@@ -154,9 +156,11 @@ Shared scripts (live in shared/, used by all architectures):
                               Grad-CAM maps; write {arch}_divergence_scores.csv
   score_floor.py              Compute floor metrics (JS, Spearman, SSIM, mIoU) between
                               seed-43 baseline and seed-42 baseline; write {arch}_floor_scores.csv
-  summarize.py                Aggregate {arch}_divergence_scores.csv into {arch}_summary_stats.json
-  add_floor_to_summary.py     Merge {arch}_floor_scores.csv statistics into an existing
-                              {arch}_summary_stats.json
+  summarize.py                Aggregate {arch}_divergence_scores.csv and {arch}_floor_scores.csv
+                              into {arch}_summary_stats.json and figures 1–5
+  generate_floor_figures.py   Generate 10 sample side-by-side figures (one per class) comparing
+                              seed-42 vs seed-43 Grad-CAM maps; write to figures_seed43/
+  add_floor_to_summary.py     (legacy) Merge floor stats into an existing summary_stats.json
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -181,7 +185,9 @@ RESULT FILE ROLES
                                    (figure5_miou_by_outcome.png added for mIoU metric)
   gradcam_full/arrays/*.npz        One file per test image; keys: teacher, kd_student,
                                    baseline, true_label, *_pred (normalized 7×7 maps)
-  gradcam_full/figures/*.png       10 randomly sampled side-by-side Grad-CAM comparisons
+  gradcam_full/figures/*.png       10 sample side-by-side Grad-CAM comparisons (teacher | KD | baseline)
+  gradcam_full/arrays_seed43/*.npz One file per test image; keys: baseline_seed42, baseline_seed43
+  gradcam_full/figures_seed43/*.png 10 sample floor comparison PNGs (seed-42 vs seed-43 baseline)
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
