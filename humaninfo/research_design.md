@@ -59,8 +59,8 @@ These are what we measure as outcomes.
 | Variable | How we measure it |
 |---|---|
 | Classification accuracy | Top-1 accuracy on test set |
-| Attention map similarity | Jensen-Shannon divergence and Spearman rank correlation between normalized Grad-CAM maps |
-| Attention divergence vs. failure correlation | Compare mean SSIM on correct vs. incorrect student predictions |
+| Attention map similarity | mIoU (primary), Jensen-Shannon divergence, Spearman rank correlation, and SSIM between normalized Grad-CAM maps |
+| Attention divergence vs. failure correlation | Compare mean mIoU, JS, Spearman r, and SSIM on correct vs. incorrect student predictions |
 
 ### 4.3 Controlled variables
 These are held constant so they do not confound our results.
@@ -103,13 +103,14 @@ Rationale for dataset choice: ResNet's final convolutional layer on a 224×224 i
 
 ### Step 5 — Quantitative analysis
 - Normalize each Grad-CAM map by its sum so it functions as a spatial probability distribution
-- For each image, compute three metrics between the teacher map and each student map:
-  - **Jensen-Shannon divergence** (symmetric, bounded 0–1): treats the normalized map as a probability distribution and measures distributional difference. Does not preserve spatial structure.
-  - **Spearman rank correlation** (bounded −1 to 1): measures monotonic spatial agreement between two flattened maps. Non-parametric and robust to outlier activations.
-  - **SSIM** (Structural Similarity Index, bounded −1 to 1): preserves local spatial structure by comparing luminance, contrast, and structure in local windows. Primary spatially-aware complement to JS divergence.
+- For each image, compute four metrics between the teacher map and each student map:
+  - **mIoU** (mean Intersection over Union, bounded 0–1): primary spatial overlap metric. For each map pair, binary masks are created at 21 threshold percentiles (0th to 100th in steps of 5) and IoU is computed at each threshold; the mean across all 21 thresholds is reported. Higher = more aligned. Multi-threshold averaging makes this robust to map peakedness differences.
+  - **Jensen-Shannon divergence** (symmetric, bounded 0–1): treats the normalized map as a probability distribution and measures distributional difference. Does not preserve spatial structure. Included as robustness check.
+  - **Spearman rank correlation** (bounded −1 to 1): measures monotonic spatial agreement between two flattened maps. Non-parametric and robust to outlier activations. Included as robustness check.
+  - **SSIM** (Structural Similarity Index, bounded −1 to 1): preserves local spatial structure by comparing luminance, contrast, and structure in local windows. Included as robustness check.
 - Separate image pairs into outcome groups: both correct / student wrong + teacher correct / both wrong
-- Compare mean JS divergence, mean Spearman r, and mean SSIM across groups for each student
-- **Floor reference:** For each architecture, a second baseline model trained with seed 43 (all else identical to the seed-42 baseline) is used to establish a reference divergence floor. JS, Spearman, and SSIM are computed between the two baseline models on the same images. This anchors the scale: it represents the minimum expected divergence between two models with no reason to attend differently beyond random initialization. The KD and baseline student divergences from the teacher are interpreted relative to this floor.
+- Compare mean mIoU, mean JS divergence, mean Spearman r, and mean SSIM across groups for each student
+- **Floor reference:** For each architecture, a second baseline model trained with seed 43 (all else identical to the seed-42 baseline) is used to establish a reference divergence floor. All four metrics are computed between the two baseline models on the same images. This anchors the scale: it represents the minimum expected divergence between two models with no reason to attend differently beyond random initialization. The KD and baseline student divergences from the teacher are interpreted relative to this floor.
 
 ### Step 6 — Qualitative case study analysis
 - Manually select 10 high-agreement pairs, 10 high-divergence pairs, 5 failure cases
@@ -141,12 +142,12 @@ Rationale for dataset choice: ResNet's final convolutional layer on a 224×224 i
 | Criterion | Metric(s) |
 |---|---|
 | Accuracy gap (teacher vs. student) | Top-1 accuracy difference |
-| Overall saliency alignment — KD vs. baseline | Mean JS divergence, mean Spearman r, mean SSIM (lower JS / higher Spearman+SSIM = more aligned) |
-| Saliency alignment on correct predictions | Mean JS, Spearman r, SSIM on jointly correct images |
-| Saliency divergence on failure cases | Mean JS, Spearman r, SSIM on student-error images |
-| Effect size | Is the difference between correct/failure groups consistent across all three metrics? |
-| Statistical significance | Mann-Whitney U test between KD and baseline JS distributions |
-| Reference floor (scale anchor) | Mean JS, Spearman r, SSIM between seed-42 and seed-43 baselines — establishes minimum expected divergence |
+| Overall saliency alignment — KD vs. baseline | Mean mIoU (primary), mean JS divergence, mean Spearman r, mean SSIM (higher mIoU/Spearman/SSIM / lower JS = more aligned) |
+| Saliency alignment on correct predictions | Mean mIoU, JS, Spearman r, SSIM on jointly correct images |
+| Saliency divergence on failure cases | Mean mIoU, JS, Spearman r, SSIM on student-error images |
+| Effect size | Is the difference between correct/failure groups consistent across all four metrics? |
+| Statistical significance | Mann-Whitney U test between KD and baseline distributions (JS: one-tailed less; mIoU: one-tailed greater) |
+| Reference floor (scale anchor) | Mean mIoU, JS, Spearman r, SSIM between seed-42 and seed-43 baselines — establishes minimum expected divergence |
 | Qualitative coherence | Do case studies tell a consistent story with the quantitative findings? |
 
 ---

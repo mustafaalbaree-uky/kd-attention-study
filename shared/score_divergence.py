@@ -1,6 +1,6 @@
 """
-Compute Jensen-Shannon divergence, Spearman rank correlation, and SSIM between
-teacher and each student Grad-CAM map for the full ImageNette validation set.
+Compute Jensen-Shannon divergence, Spearman rank correlation, SSIM, and mIoU
+between teacher and each student Grad-CAM map for the full ImageNette validation set.
 Outputs {student}_divergence_scores.csv with one row per image.
 
 Usage (from project root):
@@ -39,6 +39,7 @@ FIELDNAMES = [
     "js_teacher_kd", "js_teacher_baseline",
     "spearman_teacher_kd", "spearman_teacher_baseline",
     "ssim_teacher_kd", "ssim_teacher_baseline",
+    "miou_teacher_kd", "miou_teacher_baseline",
 ]
 
 
@@ -59,6 +60,21 @@ def ssim(a: np.ndarray, b: np.ndarray) -> float:
     a2 = a.astype(np.float64).reshape(7, 7)
     b2 = b.astype(np.float64).reshape(7, 7)
     return float(ssim_fn(a2, b2, data_range=1.0, win_size=7))
+
+
+def compute_miou(map1: np.ndarray, map2: np.ndarray) -> float:
+    a = map1.astype(np.float64).ravel()
+    b = map2.astype(np.float64).ravel()
+    ious = []
+    for p in range(0, 101, 5):  # 21 thresholds: 0, 5, 10, ..., 100
+        t1 = np.percentile(a, p)
+        t2 = np.percentile(b, p)
+        mask1 = a >= t1
+        mask2 = b >= t2
+        intersection = float(np.sum(mask1 & mask2))
+        union = float(np.sum(mask1 | mask2))
+        ious.append(intersection / union if union > 0 else 0.0)
+    return float(np.mean(ious))
 
 
 def process(npz_path: Path) -> dict:
@@ -88,6 +104,8 @@ def process(npz_path: Path) -> dict:
         "spearman_teacher_baseline": spear(t, bl),
         "ssim_teacher_kd":           ssim(t, kd),
         "ssim_teacher_baseline":     ssim(t, bl),
+        "miou_teacher_kd":           compute_miou(t, kd),
+        "miou_teacher_baseline":     compute_miou(t, bl),
     }
 
 
@@ -118,15 +136,19 @@ def main() -> None:
 
     print(f"\nSaved {len(rows)} rows → {OUT_CSV}")
 
-    js_kd  = [r["js_teacher_kd"]       for r in rows if not math.isnan(r["js_teacher_kd"])]
-    js_bl  = [r["js_teacher_baseline"] for r in rows if not math.isnan(r["js_teacher_baseline"])]
-    ss_kd  = [r["ssim_teacher_kd"]     for r in rows]
-    ss_bl  = [r["ssim_teacher_baseline"] for r in rows]
+    js_kd    = [r["js_teacher_kd"]       for r in rows if not math.isnan(r["js_teacher_kd"])]
+    js_bl    = [r["js_teacher_baseline"] for r in rows if not math.isnan(r["js_teacher_baseline"])]
+    ss_kd    = [r["ssim_teacher_kd"]     for r in rows]
+    ss_bl    = [r["ssim_teacher_baseline"] for r in rows]
+    miou_kd  = [r["miou_teacher_kd"]     for r in rows]
+    miou_bl  = [r["miou_teacher_baseline"] for r in rows]
 
     print(f"  mean js_teacher_kd         = {sum(js_kd) / len(js_kd):.6f}")
     print(f"  mean js_teacher_baseline   = {sum(js_bl) / len(js_bl):.6f}")
     print(f"  mean ssim_teacher_kd       = {sum(ss_kd) / len(ss_kd):.6f}")
     print(f"  mean ssim_teacher_baseline = {sum(ss_bl) / len(ss_bl):.6f}")
+    print(f"  mean miou_teacher_kd       = {sum(miou_kd) / len(miou_kd):.6f}")
+    print(f"  mean miou_teacher_baseline = {sum(miou_bl) / len(miou_bl):.6f}")
 
 
 if __name__ == "__main__":

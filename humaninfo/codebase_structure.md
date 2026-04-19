@@ -29,7 +29,8 @@ kd-gradcam/
 │   │       │   ├── figure1_js_divergence_bar.png
 │   │       │   ├── figure2_js_by_outcome.png
 │   │       │   ├── figure3_spearman_distribution.png
-│   │       │   └── figure4_ssim_by_outcome.png
+│   │       │   ├── figure4_ssim_by_outcome.png
+│   │       │   └── figure5_miou_by_outcome.png
 │   │       └── gradcam_full/
 │   │           ├── arrays/     ← 3,925 .npz files (one per test image)
 │   │           └── figures/    ← 10 sample Grad-CAM comparison PNGs
@@ -58,7 +59,8 @@ kd-gradcam/
 │   │       │   ├── figure1_js_divergence_bar.png
 │   │       │   ├── figure2_js_by_outcome.png
 │   │       │   ├── figure3_spearman_distribution.png
-│   │       │   └── figure4_ssim_by_outcome.png
+│   │       │   ├── figure4_ssim_by_outcome.png
+│   │       │   └── figure5_miou_by_outcome.png
 │   │       └── gradcam_full/
 │   │           ├── arrays/     ← 3,925 .npz files (one per test image)
 │   │           └── figures/    ← 10 sample Grad-CAM comparison PNGs
@@ -87,7 +89,8 @@ kd-gradcam/
 │           │   ├── figure1_js_divergence_bar.png
 │           │   ├── figure2_js_by_outcome.png
 │           │   ├── figure3_spearman_distribution.png
-│           │   └── figure4_ssim_by_outcome.png
+│           │   ├── figure4_ssim_by_outcome.png
+│           │   └── figure5_miou_by_outcome.png
 │           └── gradcam_full/
 │               ├── arrays/     ← 3,925 .npz files (one per test image)
 │               └── figures/    ← 10 sample Grad-CAM comparison PNGs
@@ -147,10 +150,10 @@ Shared scripts (live in shared/, used by all architectures):
 
   evaluate.py                 Evaluate a checkpoint against the test set; write accuracy.csv
   model_check.py              Sanity-check a checkpoint loads and runs a forward pass
-  score_divergence.py         Compute JS divergence, Spearman r, and SSIM between Grad-CAM
-                              maps; write {arch}_divergence_scores.csv
-  score_floor.py              Compute floor metrics (seed-43 baseline vs seed-0 baseline);
-                              write {arch}_floor_scores.csv
+  score_divergence.py         Compute JS divergence, Spearman r, SSIM, and mIoU between
+                              Grad-CAM maps; write {arch}_divergence_scores.csv
+  score_floor.py              Compute floor metrics (JS, Spearman, SSIM, mIoU) between
+                              seed-43 baseline and seed-42 baseline; write {arch}_floor_scores.csv
   summarize.py                Aggregate {arch}_divergence_scores.csv into {arch}_summary_stats.json
   add_floor_to_summary.py     Merge {arch}_floor_scores.csv statistics into an existing
                               {arch}_summary_stats.json
@@ -163,13 +166,19 @@ RESULT FILE ROLES
   {arch}_accuracy.csv              Top-1 accuracy for teacher, KD student, and baseline
   {arch}_training_log.csv          Per-epoch loss/accuracy during training (30 epochs each)
   {arch}_baseline_seed43_training_log   Same format, for the seed-43 floor run
-  {arch}_divergence_scores.csv     Per-image JS, Spearman r, SSIM between teacher↔kd and
-                                   teacher↔baseline Grad-CAM maps (3,925 rows)
-  {arch}_floor_scores.csv          Per-image JS, Spearman r, SSIM between seed-0 baseline
-                                   and seed-43 baseline maps — establishes noise floor
-                                   (3,925 rows)
+  {arch}_divergence_scores.csv     Per-image JS divergence, Spearman r, SSIM, and mIoU
+                                   between teacher↔kd and teacher↔baseline Grad-CAM maps
+                                   (3,925 rows; columns: js_teacher_kd, js_teacher_baseline,
+                                   spearman_teacher_kd, spearman_teacher_baseline,
+                                   ssim_teacher_kd, ssim_teacher_baseline,
+                                   miou_teacher_kd, miou_teacher_baseline)
+  {arch}_floor_scores.csv          Per-image JS, Spearman r, SSIM, and mIoU between seed-42
+                                   baseline and seed-43 baseline maps — establishes noise floor
+                                   (3,925 rows; columns: js_floor, spearman_floor,
+                                   ssim_floor, miou_floor)
   {arch}_summary_stats.json        Aggregated statistics: means, Mann-Whitney U, floor means
-  figures/figure[1-4]_*.png        Publication-quality per-architecture analysis figures
+  figures/figure[1-5]_*.png        Publication-quality per-architecture analysis figures
+                                   (figure5_miou_by_outcome.png added for mIoU metric)
   gradcam_full/arrays/*.npz        One file per test image; keys: teacher, kd_student,
                                    baseline, true_label, *_pred (normalized 7×7 maps)
   gradcam_full/figures/*.png       10 randomly sampled side-by-side Grad-CAM comparisons

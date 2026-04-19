@@ -101,17 +101,67 @@
       }
     }
   },
+  "miou": {
+    "kd_student": {
+      "mean": 0.706984,
+      "std": 0.101698
+    },
+    "baseline": {
+      "mean": 0.693009,
+      "std": 0.102556
+    }
+  },
+  "miou_by_outcome": {
+    "kd_student": {
+      "both_correct": {
+        "mean": 0.710122,
+        "std": 0.098354,
+        "n": 3851
+      },
+      "student_wrong_teacher_correct": {
+        "mean": 0.504215,
+        "std": 0.120345,
+        "n": 49
+      },
+      "both_wrong": {
+        "mean": 0.649408,
+        "std": 0.10398,
+        "n": 22
+      }
+    },
+    "baseline": {
+      "both_correct": {
+        "mean": 0.696803,
+        "std": 0.098537,
+        "n": 3848
+      },
+      "student_wrong_teacher_correct": {
+        "mean": 0.476675,
+        "std": 0.099163,
+        "n": 52
+      },
+      "both_wrong": {
+        "mean": 0.618508,
+        "std": 0.108527,
+        "n": 18
+      }
+    }
+  },
   "top1_accuracy": {
     "teacher": 0.9936,
     "kd_student": 0.9819,
     "baseline": 0.9822
   },
+  "floor_js_mean": 0.087708,
+  "floor_js_std": 0.055425,
+  "floor_spearman_mean": 0.916844,
+  "floor_spearman_std": 0.130598,
+  "floor_ssim_mean": 0.977375,
+  "floor_ssim_std": 0.053676,
+  "floor_miou_mean": null,
+  "floor_miou_std": null,
   "mann_whitney_u_statistic": 6162446.0,
   "mann_whitney_p_value": 1.9703950142392115e-53,
-  "floor_js_mean": 0.0877078724838017,
-  "floor_js_std": 0.055425162647853486,
-  "floor_spearman_mean": 0.916843906691806,
-  "floor_spearman_std": 0.13059785260161413,
-  "floor_ssim_mean": 0.9773753971177608,
-  "floor_ssim_std": 0.053675699562572454
+  "mann_whitney_u_miou": 8309231.0,
+  "mann_whitney_p_miou": 7.690039707443767e-10
 }

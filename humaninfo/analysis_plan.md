@@ -79,32 +79,41 @@ Does training with soft teacher labels produce greater Grad-CAM saliency alignme
 This is the primary empirical claim of the paper. We test it across three architectures and three metrics. The more consistently the result replicates, the stronger the claim.
 
 **Data needed:**
-- `summary_stats.json` for all three architectures (mean JS, Spearman, SSIM for KD vs. teacher and baseline vs. teacher; Mann-Whitney U statistic and p-value)
+- `summary_stats.json` for all three architectures (mean mIoU, JS, Spearman, SSIM for KD vs. teacher and baseline vs. teacher; Mann-Whitney U statistic and p-value for both JS and mIoU)
 
 **What to look for:**
 
 1. **Direction of effect** — for each architecture and each metric, is KD student more aligned with teacher than baseline? 
+   - Higher mIoU = more aligned (primary metric)
    - Lower JS divergence = more aligned
    - Higher Spearman r = more aligned
    - Higher SSIM = more aligned
 
-2. **Statistical significance** — is the Mann-Whitney p-value < 0.05 for each architecture? (The test is one-tailed: KD JS < baseline JS)
+2. **Statistical significance** — is the Mann-Whitney p-value < 0.05 for each architecture? (mIoU test: one-tailed KD > baseline; JS test: one-tailed KD < baseline)
 
-3. **Effect magnitude** — how large is the difference in absolute terms? (e.g., mean JS of 0.122 vs. 0.136 is a difference of 0.014)
+3. **Effect magnitude** — how large is the difference in absolute terms?
 
-4. **Consistency** — does the direction of effect hold across all three architectures and all three metrics, or are there exceptions?
+4. **Consistency** — does the direction of effect hold across all three architectures and all four metrics, or are there exceptions?
 
 **Decision criteria:**
 
 | Outcome | Interpretation |
 |---|---|
-| KD more aligned than baseline, p < 0.05, all three architectures, all three metrics | Strong evidence — null hypothesis rejected cleanly |
-| KD more aligned than baseline, p < 0.05, all three architectures, 2/3 metrics | Moderate-strong evidence — note which metric disagrees and why |
+| KD more aligned than baseline, p < 0.05, all three architectures, all four metrics | Strong evidence — null hypothesis rejected cleanly |
+| KD more aligned than baseline, p < 0.05, all three architectures, 3/4 metrics | Moderate-strong evidence — note which metric disagrees and why |
 | KD more aligned than baseline, p < 0.05, 2/3 architectures | Moderate evidence — discuss what's different about the third architecture |
 | Effect present but p > 0.05 for any architecture | Weak evidence for that architecture — do not overstate |
 | Effect absent or reversed for any architecture | Null holds there — this is a real finding, not a failure |
 
 **Findings (fill in after analysis):**
+
+**mIoU (higher = more aligned) — primary metric:**
+
+| Architecture | KD mean mIoU (std) | Baseline mean mIoU (std) | Difference | Mann-Whitney p |
+|---|---|---|---|---|
+| ResNet-18 | | | | |
+| MobileNetV2 | | | | |
+| DenseNet-121 | | | | |
 
 **JS divergence (lower = more aligned):**
 
@@ -225,6 +234,22 @@ Check this ordering for all three metrics and all three architectures. Also chec
 
 **Findings (fill in after analysis):**
 
+**KD student — mIoU by outcome group (higher = more aligned):**
+
+| Architecture | Both correct | Student wrong, teacher right | Both wrong | Ordering holds? |
+|---|---|---|---|---|
+| ResNet-18 | | | | |
+| MobileNetV2 | | | | |
+| DenseNet-121 | | | | |
+
+**Baseline — mIoU by outcome group:**
+
+| Architecture | Both correct | Student wrong, teacher right | Both wrong | Ordering holds? |
+|---|---|---|---|---|
+| ResNet-18 | | | | |
+| MobileNetV2 | | | | |
+| DenseNet-121 | | | | |
+
 **KD student — JS divergence by outcome group:**
 
 | Architecture | Both correct | Student wrong, teacher right | Both wrong | Ordering holds? |
@@ -256,9 +281,9 @@ Check this ordering for all three metrics and all three architectures. Also chec
 **The question this step answers:**
 Do Jensen-Shannon divergence, Spearman rank correlation, and SSIM all tell the same story — or does one of them disagree, and if so, why?
 
-Each metric captures a different aspect of map similarity. JS divergence treats the normalized map as a probability distribution and measures distributional agreement, ignoring spatial layout. Spearman rank correlation measures monotonic agreement between map values when laid out flat — it captures whether the same pixels are ranked as high-activation in both maps, but does not weight by spatial proximity. SSIM compares local patches, preserving spatial structure and measuring how similar the two maps are neighborhood-by-neighborhood.
+Each metric captures a different aspect of map similarity. mIoU measures spatial overlap via binary thresholding across 21 percentile thresholds — it is the primary metric because it directly measures whether the same regions are activated in both maps. JS divergence treats the normalized map as a probability distribution and measures distributional agreement, ignoring spatial layout. Spearman rank correlation measures monotonic agreement between map values when laid out flat — it captures whether the same pixels are ranked as high-activation in both maps, but does not weight by spatial proximity. SSIM compares local patches, preserving spatial structure and measuring how similar the two maps are neighborhood-by-neighborhood.
 
-If all three agree, our conclusion is robust to measurement choice. If one disagrees, it tells us something specific about the nature of the alignment — or misalignment.
+If all four agree, our conclusion is robust to measurement choice. If one disagrees, it tells us something specific about the nature of the alignment — or misalignment.
 
 **Data needed:**
 - Summary stats for all three architectures — all three metrics, both students
@@ -280,14 +305,14 @@ Go through each finding from Steps 2 and 4 and check whether all three metrics p
 
 **Findings (fill in after analysis):**
 
-| Comparison | JS direction | Spearman direction | SSIM direction | All agree? |
-|---|---|---|---|---|
-| KD vs baseline alignment (ResNet-18) | | | | |
-| KD vs baseline alignment (MobileNetV2) | | | | |
-| KD vs baseline alignment (DenseNet-121) | | | | |
-| Failure correlation — KD student (ResNet-18) | | | | |
-| Failure correlation — KD student (MobileNetV2) | | | | |
-| Failure correlation — KD student (DenseNet-121) | | | | |
+| Comparison | mIoU direction | JS direction | Spearman direction | SSIM direction | All agree? |
+|---|---|---|---|---|---|
+| KD vs baseline alignment (ResNet-18) | | | | | |
+| KD vs baseline alignment (MobileNetV2) | | | | | |
+| KD vs baseline alignment (DenseNet-121) | | | | | |
+| Failure correlation — KD student (ResNet-18) | | | | | |
+| Failure correlation — KD student (MobileNetV2) | | | | | |
+| Failure correlation — KD student (DenseNet-121) | | | | | |
 
 **Narrative finding:**
 
