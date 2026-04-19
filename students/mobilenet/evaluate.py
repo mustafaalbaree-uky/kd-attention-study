@@ -1,7 +1,7 @@
 """
 Evaluate teacher and both MobileNetV2 student checkpoints on the ImageNette val set.
 Downloads ImageNette from fast.ai if not already present.
-Writes students/mobilenet/results/accuracy.csv.
+Writes students/mobilenet/results/mobilenet_accuracy.csv.
 
 Usage (from any directory):
     python students/mobilenet/evaluate.py
@@ -126,7 +126,7 @@ def main():
 
     results_dir = _HERE / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = results_dir / "accuracy.csv"
+    csv_path = results_dir / "mobilenet_accuracy.csv"
 
     rows = []
     for name, ckpt, loader_fn in models_cfg:

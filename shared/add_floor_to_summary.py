@@ -1,8 +1,8 @@
 """
 Add floor metrics to summary_stats.json in-place.
 
-Reads floor_scores.csv, computes mean/std for each metric, and writes
-six new keys into summary_stats.json without touching existing keys.
+Reads {student}_floor_scores.csv, computes mean/std for each metric, and writes
+six new keys into {student}_summary_stats.json without touching existing keys.
 
 Usage:
     python shared/add_floor_to_summary.py --student resnet18
@@ -26,8 +26,8 @@ def main():
     args = parser.parse_args()
 
     results_dir  = _ROOT / "students" / args.student / "results"
-    floor_csv    = results_dir / "floor_scores.csv"
-    summary_json = results_dir / "summary_stats.json"
+    floor_csv    = results_dir / f"{args.student}_floor_scores.csv"
+    summary_json = results_dir / f"{args.student}_summary_stats.json"
 
     with floor_csv.open(newline="") as f:
         rows = list(csv.DictReader(f))

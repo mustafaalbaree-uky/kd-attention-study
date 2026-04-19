@@ -1,6 +1,6 @@
 """
-Compute summary statistics and produce paper-ready figures from divergence_scores.csv.
-Outputs summary_stats.json and figures/figure{1,2,3,4}.png under the student's results dir.
+Compute summary statistics and produce paper-ready figures from {student}_divergence_scores.csv.
+Outputs {student}_summary_stats.json and figures/figure{1,2,3,4}.png under the student's results dir.
 
 Usage (from project root):
     python shared/summarize.py                 # defaults to students/resnet18/
@@ -28,9 +28,9 @@ parser.add_argument("--student", default="resnet18",
 args = parser.parse_args()
 
 STUDENT_DIR    = _ROOT / "students" / args.student
-DIVERGENCE_CSV = STUDENT_DIR / "results" / "divergence_scores.csv"
-ACCURACY_CSV   = STUDENT_DIR / "results" / "accuracy.csv"
-STATS_JSON     = STUDENT_DIR / "results" / "summary_stats.json"
+DIVERGENCE_CSV = STUDENT_DIR / "results" / f"{args.student}_divergence_scores.csv"
+ACCURACY_CSV   = STUDENT_DIR / "results" / f"{args.student}_accuracy.csv"
+STATS_JSON     = STUDENT_DIR / "results" / f"{args.student}_summary_stats.json"
 FIGURES_DIR    = STUDENT_DIR / "results" / "figures"
 
 SEED = 42

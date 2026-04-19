@@ -1,7 +1,7 @@
 """
 Evaluate teacher and both DenseNet-121 student checkpoints on the ImageNette val set.
 Downloads ImageNette from fast.ai if not already present.
-Writes students/densenet/results/accuracy.csv.
+Writes students/densenet/results/densenet_accuracy.csv.
 
 Usage (from any directory):
     python students/densenet/evaluate.py
@@ -126,7 +126,7 @@ def main():
 
     results_dir = _HERE / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = results_dir / "accuracy.csv"
+    csv_path = results_dir / "densenet_accuracy.csv"
 
     rows = []
     for name, ckpt, loader_fn in models_cfg:

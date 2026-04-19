@@ -1,6 +1,6 @@
 """
 Compute floor metrics (JS, Spearman, SSIM) between seed-42 and seed-43 baseline
-Grad-CAM maps. Reads arrays_seed43/*.npz, writes floor_scores.csv.
+Grad-CAM maps. Reads arrays_seed43/*.npz, writes {student}_floor_scores.csv.
 
 Usage:
     python shared/score_floor.py --student resnet18
@@ -44,7 +44,7 @@ def main():
     args = parser.parse_args()
 
     arrays_dir = _ROOT / "students" / args.student / "results" / "gradcam_full" / "arrays_seed43"
-    out_csv    = _ROOT / "students" / args.student / "results" / "floor_scores.csv"
+    out_csv    = _ROOT / "students" / args.student / "results" / f"{args.student}_floor_scores.csv"
 
     npz_files = sorted(arrays_dir.glob("*.npz"))
     n_total   = len(npz_files)

@@ -18,13 +18,13 @@ kd-gradcam/
 │   │   │   ├── resnet18_baseline.pth
 │   │   │   └── resnet18_baseline_seed43.pth
 │   │   └── results/
-│   │       ├── accuracy.csv
+│   │       ├── resnet18_accuracy.csv
 │   │       ├── resnet18_kd_training_log.csv
 │   │       ├── resnet18_baseline_training_log.csv
 │   │       ├── resnet18_baseline_seed43_training_log.csv
-│   │       ├── divergence_scores.csv
-│   │       ├── floor_scores.csv
-│   │       ├── summary_stats.json
+│   │       ├── resnet18_divergence_scores.csv
+│   │       ├── resnet18_floor_scores.csv
+│   │       ├── resnet18_summary_stats.json
 │   │       ├── figures/
 │   │       │   ├── figure1_js_divergence_bar.png
 │   │       │   ├── figure2_js_by_outcome.png
@@ -47,13 +47,13 @@ kd-gradcam/
 │   │   │   ├── mobilenet_baseline.pth
 │   │   │   └── mobilenet_baseline_seed43.pth
 │   │   └── results/
-│   │       ├── accuracy.csv
+│   │       ├── mobilenet_accuracy.csv
 │   │       ├── mobilenet_kd_training_log.csv
 │   │       ├── mobilenet_baseline_training_log.csv
 │   │       ├── mobilenet_baseline_seed43_training_log.csv
-│   │       ├── divergence_scores.csv
-│   │       ├── floor_scores.csv
-│   │       ├── summary_stats.json
+│   │       ├── mobilenet_divergence_scores.csv
+│   │       ├── mobilenet_floor_scores.csv
+│   │       ├── mobilenet_summary_stats.json
 │   │       ├── figures/
 │   │       │   ├── figure1_js_divergence_bar.png
 │   │       │   ├── figure2_js_by_outcome.png
@@ -76,13 +76,13 @@ kd-gradcam/
 │       │   ├── densenet_baseline.pth
 │       │   └── densenet_baseline_seed43.pth
 │       └── results/
-│           ├── accuracy.csv
+│           ├── densenet_accuracy.csv
 │           ├── densenet_kd_training_log.csv
 │           ├── densenet_baseline_training_log.csv
 │           ├── densenet_baseline_seed43_training_log.csv
-│           ├── divergence_scores.csv
-│           ├── floor_scores.csv
-│           ├── summary_stats.json
+│           ├── densenet_divergence_scores.csv
+│           ├── densenet_floor_scores.csv
+│           ├── densenet_summary_stats.json
 │           ├── figures/
 │           │   ├── figure1_js_divergence_bar.png
 │           │   ├── figure2_js_by_outcome.png
@@ -148,27 +148,27 @@ Shared scripts (live in shared/, used by all architectures):
   evaluate.py                 Evaluate a checkpoint against the test set; write accuracy.csv
   model_check.py              Sanity-check a checkpoint loads and runs a forward pass
   score_divergence.py         Compute JS divergence, Spearman r, and SSIM between Grad-CAM
-                              maps; write divergence_scores.csv
+                              maps; write {arch}_divergence_scores.csv
   score_floor.py              Compute floor metrics (seed-43 baseline vs seed-0 baseline);
-                              write floor_scores.csv
-  summarize.py                Aggregate divergence_scores.csv into summary_stats.json
-  add_floor_to_summary.py     Merge floor_scores.csv statistics into an existing
-                              summary_stats.json
+                              write {arch}_floor_scores.csv
+  summarize.py                Aggregate {arch}_divergence_scores.csv into {arch}_summary_stats.json
+  add_floor_to_summary.py     Merge {arch}_floor_scores.csv statistics into an existing
+                              {arch}_summary_stats.json
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RESULT FILE ROLES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  accuracy.csv                     Top-1 accuracy for teacher, KD student, and baseline
-  *_training_log.csv               Per-epoch loss/accuracy during training (30 epochs each)
-  *_baseline_seed43_training_log   Same format, for the seed-43 floor run
-  divergence_scores.csv            Per-image JS, Spearman r, SSIM between teacher↔kd and
+  {arch}_accuracy.csv              Top-1 accuracy for teacher, KD student, and baseline
+  {arch}_training_log.csv          Per-epoch loss/accuracy during training (30 epochs each)
+  {arch}_baseline_seed43_training_log   Same format, for the seed-43 floor run
+  {arch}_divergence_scores.csv     Per-image JS, Spearman r, SSIM between teacher↔kd and
                                    teacher↔baseline Grad-CAM maps (3,925 rows)
-  floor_scores.csv                 Per-image JS, Spearman r, SSIM between seed-0 baseline
+  {arch}_floor_scores.csv          Per-image JS, Spearman r, SSIM between seed-0 baseline
                                    and seed-43 baseline maps — establishes noise floor
                                    (3,925 rows)
-  summary_stats.json               Aggregated statistics: means, Mann-Whitney U, floor means
+  {arch}_summary_stats.json        Aggregated statistics: means, Mann-Whitney U, floor means
   figures/figure[1-4]_*.png        Publication-quality per-architecture analysis figures
   gradcam_full/arrays/*.npz        One file per test image; keys: teacher, kd_student,
                                    baseline, true_label, *_pred (normalized 7×7 maps)
@@ -181,7 +181,7 @@ DESIGN NOTES
 
 Floor computation: The seed-43 baseline is trained identically to the seed-0 baseline
   except for the random seed. Its Grad-CAM maps are compared against the seed-0 baseline
-  maps to produce floor_scores.csv. This gives a within-model noise floor for each metric,
+  maps to produce {arch}_floor_scores.csv. This gives a within-model noise floor for each metric,
   letting us interpret whether teacher↔kd gaps are meaningfully larger than training-seed
   variance.
 

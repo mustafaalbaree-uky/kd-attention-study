@@ -2,7 +2,7 @@
 Evaluate teacher and both student checkpoints on the ImageNette validation split.
 Downloads ImageNette from fast.ai if not already present (avoids HuggingFace
 datasets library, which is incompatible with Python 3.14).
-Writes results/accuracy.csv with top-1 accuracy per model.
+Writes results/resnet18_accuracy.csv with top-1 accuracy per model.
 """
 import csv
 import random
@@ -118,7 +118,7 @@ def main():
     ]
 
     Path("results").mkdir(exist_ok=True)
-    csv_path = Path("results/accuracy.csv")
+    csv_path = Path("results/resnet18_accuracy.csv")
     rows = []
 
     for model_name, ckpt_path, loader_fn in models_cfg:

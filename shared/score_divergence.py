@@ -1,7 +1,7 @@
 """
 Compute Jensen-Shannon divergence, Spearman rank correlation, and SSIM between
 teacher and each student Grad-CAM map for the full ImageNette validation set.
-Outputs divergence_scores.csv with one row per image.
+Outputs {student}_divergence_scores.csv with one row per image.
 
 Usage (from project root):
     python shared/score_divergence.py                 # defaults to students/resnet18/
@@ -29,7 +29,7 @@ args = parser.parse_args()
 
 STUDENT_DIR = _ROOT / "students" / args.student
 ARRAYS_DIR  = STUDENT_DIR / "results" / "gradcam_full" / "arrays"
-OUT_CSV     = STUDENT_DIR / "results" / "divergence_scores.csv"
+OUT_CSV     = STUDENT_DIR / "results" / f"{args.student}_divergence_scores.csv"
 
 FIELDNAMES = [
     "filename",
