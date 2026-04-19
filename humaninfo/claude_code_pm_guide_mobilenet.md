@@ -100,6 +100,15 @@ Every prompt sent to Claude Code follows this exact template. Do not deviate fro
 - Save config to config.yaml, not hardcoded
 - [Any other constraint specific to this task]
 
+## Documentation
+After completing the task, update ALL of the following documentation files to reflect any new files, scripts, metrics, or structural changes this task introduced:
+- humaninfo/codebase_structure.md (update SCRIPT ROLES, RESULT FILE ROLES, and the directory tree)
+- humaninfo/research_design.md (update Section 5 methodology and Section 7 evaluation criteria if metrics changed)
+- humaninfo/analysis_plan.md (update metric tables in Steps 2, 4, 5 if new metrics were added)
+
+## Git
+After documentation is updated, commit ALL changed files with an appropriate message and push to origin main.
+
 ## Verify by
 [How we will know this worked. E.g.: "Run the script and confirm it prints final val accuracy and saves the checkpoint."]
 ```
