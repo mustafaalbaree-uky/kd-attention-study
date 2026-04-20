@@ -10,22 +10,15 @@ from pathlib import Path
 
 _ROOT = Path(__file__).parent
 
-_CANDIDATE_DIRS = [
-    Path("/kaggle/input/checkpoints-seed43"),
-    Path("/kaggle/input/checkpoints_seed43"),
-    Path("/kaggle/input/datasets/mustafaalbaree/checkpoints-seed43"),
-    Path("/kaggle/input/datasets/mustafaalbaree/checkpoints_seed43"),
-]
-
-
 def find_dataset_dir() -> Path:
-    for d in _CANDIDATE_DIRS:
-        if d.exists():
-            return d
+    # Search all of /kaggle/input/ for any directory containing resnet18_baseline_seed43.pth
+    kaggle_input = Path("/kaggle/input")
+    matches = list(kaggle_input.rglob("resnet18_baseline_seed43.pth"))
+    if matches:
+        return matches[0].parent
     raise FileNotFoundError(
-        "Seed-43 dataset not found. Tried:\n" +
-        "\n".join(f"  {d}" for d in _CANDIDATE_DIRS) +
-        "\nRun !ls /kaggle/input/ to find the correct path."
+        "resnet18_baseline_seed43.pth not found anywhere under /kaggle/input/.\n"
+        "Check that the checkpoints_seed43 dataset is attached to this notebook."
     )
 
 
